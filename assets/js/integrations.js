@@ -715,18 +715,58 @@ function adminMergeSearch(q) {
 
 async function adminMerge(realId) {
   const tempId = _adminMergeId;
-  if (!tempId || !realId) return;
-  const cl = sbEnsureClient();
-  if (!cl) return;
-  const { data, error } = await cl.rpc('merge_players', { p_temp_id: tempId, p_real_id: realId });
-  if (error || !data?.ok) {
-    showToast('Ошибка слияния: ' + (error?.message || data?.message || ''), 'error');
+
+  // --- validation ---
+  if (!tempId || !realId) {
+    showToast('Выберите игрока для слияния', 'error');
     return;
   }
-  _adminMergeId    = null;
-  _adminMergeQuery = '';
-  showToast(`✅ Слито. Перенесено записей: ${data.moved}`);
-  await adminLoadData();
+  if (tempId === realId) {
+    showToast('Нельзя слить игрока с самим собой', 'error');
+    return;
+  }
+  const allPlayers = typeof loadPlayerDB === 'function' ? (loadPlayerDB() || []) : [];
+  const target = allPlayers.find(p => String(p.id) === String(realId));
+  if (!target || target.status === 'temporary') {
+    showToast('Выберите реального игрока из списка (не временного)', 'error');
+    return;
+  }
+  const cl = sbEnsureClient();
+  if (!cl) {
+    showToast('Нет подключения к Supabase', 'error');
+    return;
+  }
+
+  // --- confirmation ---
+  const tempPlayer = _adminTempPlayers.find(p => String(p.id) === String(tempId));
+  const tempName  = tempPlayer ? tempPlayer.name : tempId;
+  const realName  = target.name || realId;
+  if (typeof showConfirm === 'function') {
+    const ok = await showConfirm(
+      `Слить временного игрока «${tempName}» в «${realName}»?\nЗаписи с турниров и очки будут перенесены. Действие необратимо.`
+    );
+    if (!ok) return;
+  }
+
+  // --- RPC ---
+  try {
+    const { data, error } = await cl.rpc('merge_players', { p_temp_id: tempId, p_real_id: realId });
+    if (error || !data?.ok) {
+      showToast('Ошибка слияния: ' + (error?.message || data?.message || ''), 'error');
+      return;
+    }
+    _adminMergeId    = null;
+    _adminMergeQuery = '';
+    showToast(`✅ Слито в «${realName}». Перенесено записей: ${data.moved}`);
+
+    // remove temp player from local DB & refresh roster
+    if (typeof removePlayerFromDB === 'function') removePlayerFromDB(tempId);
+    if (typeof _refreshRdb === 'function') _refreshRdb();
+
+    await adminLoadData();
+  } catch (e) {
+    showToast('Сетевая ошибка: ' + (e.message || e), 'error');
+  }
 }
 
 function _adminRefreshPanel() {
