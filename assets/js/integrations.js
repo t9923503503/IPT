@@ -376,10 +376,15 @@ async function sbConnect() {
   }
   sbStopPolling();
   clearTimeout(sbSaveTimer);
+  sbClient = sbEnsureClient();
+  if (!sbClient) {
+    sbSetStatus('offline');
+    showToast('Синхронизация недоступна: Supabase не загружен (проверьте сеть или блокировку скриптов)');
+    sbRefreshCard();
+    return;
+  }
   sbSetStatus('connecting');
   try {
-    sbClient = sbEnsureClient();
-    if (!sbClient) throw new Error('Supabase SDK not loaded');
     const { data, error } = await sbClient.rpc('create_room', {
       p_room_code:     sbConfig.roomCode,
       p_room_secret:   sbConfig.roomSecret,
@@ -715,57 +720,45 @@ function adminMergeSearch(q) {
 
 async function adminMerge(realId) {
   const tempId = _adminMergeId;
-
-  // --- validation ---
   if (!tempId || !realId) {
     showToast('Выберите игрока для слияния', 'error');
     return;
   }
-  if (tempId === realId) {
+  if (String(tempId) === String(realId)) {
     showToast('Нельзя слить игрока с самим собой', 'error');
     return;
   }
-  const allPlayers = typeof loadPlayerDB === 'function' ? (loadPlayerDB() || []) : [];
-  const target = allPlayers.find(p => String(p.id) === String(realId));
-  if (!target || target.status === 'temporary') {
+  const localDb = typeof loadPlayerDB === 'function' ? loadPlayerDB() : [];
+  const realPlayer = localDb.find(p => String(p.id) === String(realId));
+  const tempPlayer = _adminTempPlayers.find(p => String(p.id) === String(tempId));
+  if (!realPlayer || realPlayer.status === 'temporary') {
     showToast('Выберите реального игрока из списка (не временного)', 'error');
     return;
   }
+  const tempName = tempPlayer ? tempPlayer.name : 'Временный';
+  const realName = realPlayer.name || 'Игрок';
+  const msg = `Слить временного игрока «${tempName}» в «${realName}»?\n\nЗаписи с турниров и очки будут перенесены. Действие необратимо.`;
+  if (!(typeof showConfirm === 'function' && (await showConfirm(msg)))) return;
+
   const cl = sbEnsureClient();
   if (!cl) {
     showToast('Нет подключения к Supabase', 'error');
     return;
   }
-
-  // --- confirmation ---
-  const tempPlayer = _adminTempPlayers.find(p => String(p.id) === String(tempId));
-  const tempName  = tempPlayer ? tempPlayer.name : tempId;
-  const realName  = target.name || realId;
-  if (typeof showConfirm === 'function') {
-    const ok = await showConfirm(
-      `Слить временного игрока «${tempName}» в «${realName}»?\nЗаписи с турниров и очки будут перенесены. Действие необратимо.`
-    );
-    if (!ok) return;
-  }
-
-  // --- RPC ---
   try {
     const { data, error } = await cl.rpc('merge_players', { p_temp_id: tempId, p_real_id: realId });
     if (error || !data?.ok) {
-      showToast('Ошибка слияния: ' + (error?.message || data?.message || ''), 'error');
+      showToast('Ошибка слияния: ' + (error?.message || data?.message || 'неизвестная ошибка'), 'error');
       return;
     }
     _adminMergeId    = null;
     _adminMergeQuery = '';
-    showToast(`✅ Слито в «${realName}». Перенесено записей: ${data.moved}`);
-
-    // remove temp player from local DB & refresh roster
+    showToast(`✅ Слито в «${realName}». Перенесено записей: ${data.moved ?? 0}`);
     if (typeof removePlayerFromDB === 'function') removePlayerFromDB(tempId);
     if (typeof _refreshRdb === 'function') _refreshRdb();
-
     await adminLoadData();
   } catch (e) {
-    showToast('Сетевая ошибка: ' + (e.message || e), 'error');
+    showToast('Ошибка слияния: ' + (e?.message || 'сеть'), 'error');
   }
 }
 

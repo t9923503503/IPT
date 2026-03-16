@@ -258,6 +258,79 @@ async function finishTournament() {
     return s;
   })();
 
+  // ── Compute highlights for snapshot ────────────────────────
+  // Best individual round
+  let bestRound = null;
+  for (let ci = 0; ci < nc; ci++) {
+    for (let mi = 0; mi < ppc; mi++) {
+      for (let ri = 0; ri < ppc; ri++) {
+        const sc = scores[ci]?.[mi]?.[ri];
+        if (sc != null && (!bestRound || sc > bestRound.score)) {
+          bestRound = { name: ALL_COURTS[ci].men[mi], gender: 'M', score: sc, round: ri };
+        }
+      }
+    }
+    // Women scores are derived from men's — check partner mapping
+    for (let wi = 0; wi < ppc; wi++) {
+      for (let ri = 0; ri < ppc; ri++) {
+        const mi = partnerM(wi, ri);
+        const sc = scores[ci]?.[mi]?.[ri];
+        if (sc != null && (!bestRound || sc > bestRound.score)) {
+          bestRound = { name: ALL_COURTS[ci].women[wi], gender: 'W', score: sc, round: ri };
+        }
+      }
+    }
+  }
+
+  // Best pair (man + woman with highest combined score)
+  const pairMap = {};
+  for (let ci = 0; ci < nc; ci++) {
+    const ct = ALL_COURTS[ci];
+    for (let mi = 0; mi < ppc; mi++) {
+      for (let ri = 0; ri < ppc; ri++) {
+        const sc = scores[ci]?.[mi]?.[ri];
+        if (!sc) continue;
+        const man = ct.men[mi], woman = ct.women[partnerW(mi, ri)];
+        if (!man || !woman) continue;
+        const k = `${man}\x00${woman}`;
+        pairMap[k] = (pairMap[k] || 0) + sc;
+      }
+    }
+  }
+  // Include division scores
+  DIV_KEYS.forEach(dkey => {
+    const men = divRoster[dkey].men, women = divRoster[dkey].women, Nd = men.length;
+    if (!Nd) return;
+    for (let mi = 0; mi < Nd; mi++) {
+      for (let ri = 0; ri < Nd; ri++) {
+        const sc = (divScores[dkey][mi] ?? [])[ri] ?? null;
+        if (!sc) continue;
+        const man = men[mi], woman = women[divPartnerW(mi, ri, Nd)];
+        if (!man || !woman) continue;
+        const k = `${man}\x00${woman}`;
+        pairMap[k] = (pairMap[k] || 0) + sc;
+      }
+    }
+  });
+  let bestPair = null;
+  for (const [key, pts] of Object.entries(pairMap)) {
+    if (!bestPair || pts > bestPair.totalPts) {
+      const [man, woman] = key.split('\x00');
+      bestPair = { man, woman, totalPts: pts };
+    }
+  }
+
+  // Court stats
+  const courtStats = Array.from({length: nc}, (_, ci) => {
+    const flat = scores[ci].flat().filter(x => x !== null);
+    const total = flat.reduce((s, x) => s + x, 0);
+    return {
+      name: (COURT_META[ci] || {}).name || `Корт ${ci + 1}`,
+      totalPts: total,
+      avgPts: flat.length ? (total / flat.length).toFixed(1) : '0',
+    };
+  });
+
   const snapshot = {
     id:        Date.now(),
     name,
@@ -268,6 +341,11 @@ async function finishTournament() {
     totalScore,
     rPlayed,
     savedAt:   new Date().toISOString(),
+    mvpName:   players[0]?.name || '',
+    avgScore:  players.length && rPlayed ? (totalScore / (players.length * rPlayed)).toFixed(1) : '0',
+    bestRound,
+    bestPair,
+    courtStats,
   };
 
   // Load history, prepend, save
@@ -371,9 +449,12 @@ function buildNav() {
   top.className = 'nav-top';
 
   const logo = document.createElement('div');
-  logo.id = 'nav-logo'; // сохраняем id — инжект base64 делает getElementById('nav-logo').src
+  logo.id = 'nav-logo';
   logo.className = 'nav-logo-container';
   logo.innerHTML = '<div class="brand-main">ЛЮТЫЕ ПЛЯЖНИКИ !!</div><div class="brand-sub">King of the Court</div>';
+  logo.setAttribute('role', 'button');
+  logo.setAttribute('title', 'На главную');
+  logo.addEventListener('click', () => switchTab('home'));
   top.appendChild(logo);
 
   const spacer = document.createElement('div');

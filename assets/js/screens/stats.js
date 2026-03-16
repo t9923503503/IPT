@@ -385,3 +385,79 @@ function renderRating() {
       </div>
     </div>`;
 }
+
+// ════════════════════════════════════════════════════════════
+// PLAYER PAIR STATS (for Player Card chemistry section)
+// ════════════════════════════════════════════════════════════
+function getPlayerPairStats(playerName, playerGender) {
+  const pairMap = {}; // partnerName -> { pts, rounds }
+  const isMale = playerGender === 'M';
+
+  // Stage 1 courts
+  for (let ci = 0; ci < nc; ci++) {
+    const ct = ALL_COURTS[ci];
+    if (isMale) {
+      const mi = ct.men.indexOf(playerName);
+      if (mi < 0) continue;
+      for (let ri = 0; ri < ppc; ri++) {
+        const sc = scores[ci]?.[mi]?.[ri] ?? null;
+        if (!sc) continue;
+        const partner = ct.women[partnerW(mi, ri)] || '';
+        if (!partner) continue;
+        if (!pairMap[partner]) pairMap[partner] = { pts: 0, rounds: 0 };
+        pairMap[partner].pts += sc;
+        pairMap[partner].rounds++;
+      }
+    } else {
+      const wi = ct.women.indexOf(playerName);
+      if (wi < 0) continue;
+      for (let ri = 0; ri < ppc; ri++) {
+        const mi = partnerM(wi, ri);
+        const sc = scores[ci]?.[mi]?.[ri] ?? null;
+        if (!sc) continue;
+        const partner = ct.men[mi] || '';
+        if (!partner) continue;
+        if (!pairMap[partner]) pairMap[partner] = { pts: 0, rounds: 0 };
+        pairMap[partner].pts += sc;
+        pairMap[partner].rounds++;
+      }
+    }
+  }
+
+  // Division courts
+  DIV_KEYS.forEach(dkey => {
+    const men = divRoster[dkey].men, women = divRoster[dkey].women, Nd = men.length;
+    if (!Nd) return;
+    if (isMale) {
+      const mi = men.indexOf(playerName);
+      if (mi < 0) return;
+      for (let ri = 0; ri < Nd; ri++) {
+        const sc = (divScores[dkey][mi] ?? [])[ri] ?? null;
+        if (!sc) continue;
+        const partner = women[divPartnerW(mi, ri, Nd)] || '';
+        if (!partner) continue;
+        if (!pairMap[partner]) pairMap[partner] = { pts: 0, rounds: 0 };
+        pairMap[partner].pts += sc;
+        pairMap[partner].rounds++;
+      }
+    } else {
+      const wi = women.indexOf(playerName);
+      if (wi < 0) return;
+      for (let ri = 0; ri < Nd; ri++) {
+        const mi = divPartnerM(wi, ri, Nd);
+        const sc = (divScores[dkey][mi] ?? [])[ri] ?? null;
+        if (!sc) continue;
+        const partner = men[mi] || '';
+        if (!partner) continue;
+        if (!pairMap[partner]) pairMap[partner] = { pts: 0, rounds: 0 };
+        pairMap[partner].pts += sc;
+        pairMap[partner].rounds++;
+      }
+    }
+  });
+
+  return Object.entries(pairMap)
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.pts - a.pts)
+    .slice(0, 3);
+}

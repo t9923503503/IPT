@@ -83,6 +83,10 @@ let homeArchiveFormOpen = false;
 let homeArchiveFormPlayers = [];   // [{name, pts, gender}]
 let homeArchiveFormGender  = 'M';  // default gender for next player
 
+// ── ARCHIVE FILTERS STATE ─────────────────────────────────
+let archiveSearch = '';
+let archiveSort   = 'date_desc'; // 'date_desc' | 'date_asc' | 'players' | 'pts'
+
 // ── PLAYER DATABASE STATE ───────────────────────────────────
 let playersGender = 'M';
 let playersSearch = '';

@@ -103,6 +103,23 @@ function showPlayerCard(name, gender) {
                           achvs.push({ icon:'📈', text:'Winrate 50%+',           cls:'green' });
   if (p2cnt >= 3)         achvs.push({ icon:'🥈', text:'Серебряный мастер ×3',   cls:'purple' });
 
+  // Streak-based achievements from trnHistory
+  if (trnHistory.length >= 3) {
+    let consecWins = 0, consecPodiums = 0;
+    for (const t of trnHistory) {
+      const slot = (t.winners||[]).find(w => (w.playerIds||[]).includes(pid));
+      if (slot?.place === 1) { consecWins++; consecPodiums++; }
+      else if (slot?.place <= 3) { consecWins = 0; consecPodiums++; }
+      else break;
+    }
+    if (consecWins >= 3)    achvs.push({ icon:'🔥', text:`Серия ${consecWins} побед`,    cls:'fire' });
+    if (consecPodiums >= 5) achvs.push({ icon:'💎', text:`Призёр ${consecPodiums}× подряд`, cls:'purple' });
+  }
+
+  // Activity-based
+  if (totalPlayed >= 20)  achvs.push({ icon:'🏅', text:'20+ турниров',  cls:'blue' });
+  if (totalPlayed >= 50)  achvs.push({ icon:'🌟', text:'Полтинник!',    cls:'gold' });
+
   // ── Stage 1 data (current session) ───────────────────────
   let s1Data = null;
   for (let ci = 0; ci < nc; ci++) {
@@ -224,13 +241,56 @@ function showPlayerCard(name, gender) {
         <span class="pcard-pod-cnt">${p3cnt}</span>
         <span class="pcard-pod-lbl">3 место</span>
       </div>
-    </div>` : '';
+    </div>
+    ${(() => {
+      const rM = dbPlayer.ratingM || 0, rW = dbPlayer.ratingW || 0, rMix = dbPlayer.ratingMix || 0;
+      const tM = dbPlayer.tournamentsM || 0, tW = dbPlayer.tournamentsW || 0, tMix = dbPlayer.tournamentsMix || 0;
+      const maxR = Math.max(rM, rW, rMix, 1);
+      if (rM + rW + rMix === 0) return '';
+      return `<div class="pcard-rating-breakdown">
+        ${rM ? `<div class="pcard-rb-row"><span class="pcard-rb-label">♂ Мужские</span><div class="pcard-rb-bar"><div class="pcard-rb-fill m" style="width:${Math.round(rM/maxR*100)}%"></div></div><span class="pcard-rb-val">${rM}</span><span class="pcard-rb-trn">${tM} турн.</span></div>` : ''}
+        ${rW ? `<div class="pcard-rb-row"><span class="pcard-rb-label">♀ Женские</span><div class="pcard-rb-bar"><div class="pcard-rb-fill w" style="width:${Math.round(rW/maxR*100)}%"></div></div><span class="pcard-rb-val">${rW}</span><span class="pcard-rb-trn">${tW} турн.</span></div>` : ''}
+        ${rMix ? `<div class="pcard-rb-row"><span class="pcard-rb-label">🔄 Микст</span><div class="pcard-rb-bar"><div class="pcard-rb-fill mix" style="width:${Math.round(rMix/maxR*100)}%"></div></div><span class="pcard-rb-val">${rMix}</span><span class="pcard-rb-trn">${tMix} турн.</span></div>` : ''}
+      </div>`;
+    })()}` : '';
 
   const achvHtml = achvs.length ? `
     <div class="pcard-section">🏅 Достижения</div>
     <div class="pcard-achv-row">
       ${achvs.map(a => `<div class="pcard-achv ${a.cls}"><span>${a.icon}</span>${esc(a.text)}</div>`).join('')}
     </div>` : '';
+
+  // ── Form trend (last 5 tournaments) ──────────────────────
+  const formTrendHtml = (() => {
+    if (!trnHistory.length) return '';
+    const last5 = trnHistory.slice(0, 5);
+    const items = last5.map(t => {
+      const slot = (t.winners||[]).find(w => (w.playerIds||[]).includes(pid));
+      if (!slot) return { medal: '👤', place: 99 };
+      return { medal: MEDALS[slot.place-1] || `${slot.place}`, place: slot.place };
+    });
+    if (items.every(i => i.place === 99)) return '';
+
+    // Determine trend
+    const places = items.filter(i => i.place < 99).map(i => i.place);
+    let trendIcon = '➡️', trendText = '';
+    if (places.length >= 2) {
+      const avg1 = places.slice(0, Math.ceil(places.length/2)).reduce((a,b)=>a+b,0) / Math.ceil(places.length/2);
+      const avg2 = places.slice(Math.ceil(places.length/2)).reduce((a,b)=>a+b,0) / (places.length - Math.ceil(places.length/2));
+      if (avg1 < avg2 - 0.5) { trendIcon = '📈'; trendText = 'подъём'; }
+      else if (avg1 > avg2 + 0.5) { trendIcon = '📉'; trendText = 'спад'; }
+      else { trendIcon = '➡️'; trendText = 'стабильно'; }
+    }
+    const winsInRow = (() => { let c = 0; for (const i of items) { if (i.place === 1) c++; else break; } return c; })();
+    if (winsInRow >= 3) { trendIcon = '🔥'; trendText = `${winsInRow} побед подряд!`; }
+
+    return `
+    <div class="pcard-section">📈 Форма</div>
+    <div class="pcard-form-row">
+      ${items.map((it, idx) => `${idx > 0 ? '<span class="pcard-form-arrow">→</span>' : ''}<span class="pcard-form-item">${it.medal}</span>`).join('')}
+      <span class="pcard-form-label">${trendIcon} ${trendText}</span>
+    </div>`;
+  })();
 
   const trnHistHtml = trnHistory.length ? `
     <div class="pcard-section">📚 История турниров</div>
@@ -252,6 +312,33 @@ function showPlayerCard(name, gender) {
       }).join('')}
     </div>` : '';
 
+  // ── Best partners (chemistry) ─────────────────────────────
+  const partnersHtml = (() => {
+    if (typeof getPlayerPairStats !== 'function') return '';
+    const pairs = getPlayerPairStats(name, gender);
+    if (!pairs.length) return '';
+    const icon = gender === 'M' ? '👩' : '🏋️';
+    return `
+    <div class="pcard-section">💜 Лучшие партнёры</div>
+    <div class="pcard-partners">
+      ${pairs.map((p, i) => `<div class="pcard-partner-row">
+        <span class="pcard-partner-rank">${i+1}</span>
+        <span class="pcard-partner-name">${icon} ${esc(p.name)}</span>
+        <span class="pcard-partner-pts">${p.pts} оч</span>
+        <span class="pcard-partner-info">${p.rounds} р.</span>
+      </div>`).join('')}
+    </div>`;
+  })();
+
+  // ── Session histogram ───────────────────────────────────────
+  const histogramHtml = (() => {
+    if (!sessionScores.length) return '';
+    const max = Math.max(...sessionScores, 1);
+    return `<div class="pcard-histogram">
+      ${sessionScores.map(sc => `<div class="pcard-hist-bar${sc === 0 ? ' rest' : ''}" style="height:${Math.max(sc/max*100, 4)}%" title="${sc} оч"></div>`).join('')}
+    </div>`;
+  })();
+
   const sessionHtml = (s1Data || finData) ? `
     <div class="pcard-section">🏐 Текущая сессия</div>
     <div class="pcard-summary" style="grid-template-columns:1fr 1fr 1fr">
@@ -259,6 +346,7 @@ function showPlayerCard(name, gender) {
       <div class="pcard-stat-box"><div class="pcard-stat-val">${sessAvg}</div><div class="pcard-stat-lbl">avg/раунд</div></div>
       <div class="pcard-stat-box"><div class="pcard-stat-val">${sessBest}</div><div class="pcard-stat-lbl">лучший раунд</div></div>
     </div>
+    ${histogramHtml}
     ${s1Data ? `<div class="pcard-section">Этап 1 · ${s1Data.courtName}</div><div class="pcard-rounds">${renderRounds(s1Data.rounds)}</div>` : ''}
     ${finData ? `<div class="pcard-section">${finData.label}</div><div class="pcard-rounds">${renderRounds(finData.rounds)}</div>` : ''}` : '';
 
@@ -276,6 +364,8 @@ function showPlayerCard(name, gender) {
     </div>
     ${dbStatsHtml}
     ${achvHtml}
+    ${formTrendHtml}
+    ${partnersHtml}
     ${trnHistHtml}
     ${sessionHtml}
   `;

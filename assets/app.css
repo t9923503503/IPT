@@ -172,7 +172,7 @@ body{
   gap:2px;
   flex-shrink:0;
 }
-.nav-logo-container{flex-shrink:0;margin-right:4px;padding-left:4px;display:flex;flex-direction:column;justify-content:center;line-height:1;white-space:nowrap}
+.nav-logo-container{flex-shrink:0;margin-right:4px;padding-left:4px;display:flex;flex-direction:column;justify-content:center;line-height:1;white-space:nowrap;cursor:pointer}
 .brand-main{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:.85rem;color:var(--gold);text-transform:uppercase;letter-spacing:.3px}
 .brand-sub{font-size:.5rem;color:rgba(255,255,255,.7);font-weight:400;letter-spacing:.2px;margin-top:1px}
 @media(max-width:380px){.brand-main{font-size:.75rem}}
@@ -2338,3 +2338,104 @@ button.player-tap:active{opacity:.6}
 .admin-merge-candidate{padding:7px 10px;cursor:pointer;border-radius:6px;
   font-size:13px;font-weight:600;color:#fff;transition:background .15s}
 .admin-merge-candidate:hover{background:rgba(77,168,218,.15)}
+
+/* ══ Tournament Details (from Archive) ══════════════════════ */
+.trd-section{font-size:13px;font-weight:700;color:var(--gold);letter-spacing:.5px;
+  margin:14px 0 8px;text-transform:uppercase}
+.trd-meta-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.trd-chip{font-size:10px;padding:3px 8px;border-radius:6px;
+  background:rgba(255,255,255,.06);border:1px solid #2a2a40;color:var(--muted)}
+
+.trd-podium{display:flex;flex-direction:column;gap:6px}
+.trd-pod-row{display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:rgba(255,215,0,.04);border:1px solid rgba(255,215,0,.12);border-radius:8px}
+.trd-pod-medal{font-size:18px;min-width:28px;text-align:center}
+.trd-pod-name{flex:1;font-size:13px;font-weight:600;color:#fff}
+.trd-pod-pts{font-size:13px;font-weight:700;color:var(--gold);min-width:44px;text-align:right}
+.trd-pod-avg{font-size:10px;color:var(--muted);min-width:36px;text-align:right}
+
+.trd-highlights{display:flex;flex-direction:column;gap:4px}
+.trd-hl-item{font-size:12px;color:#ccc;padding:5px 8px;
+  background:rgba(255,255,255,.03);border-radius:6px;line-height:1.4}
+.trd-hl-item b{color:#fff}
+
+.trd-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.trd-table{width:100%;border-collapse:collapse;font-size:12px}
+.trd-table th{text-align:left;padding:6px 4px;color:var(--muted);font-weight:600;
+  border-bottom:1px solid #1e1e34;font-size:10px;text-transform:uppercase}
+.trd-table td{padding:5px 4px;border-bottom:1px solid rgba(30,30,52,.5)}
+.trd-rank-num{font-weight:700;color:var(--gold);min-width:20px;display:inline-block}
+.trd-rank-name{color:#fff;font-weight:500}
+.trd-rank-pts{font-weight:700;color:var(--gold);text-align:right}
+.trd-rank-avg{color:var(--muted);text-align:right}
+.trd-rank-rpts{color:#3ecf8e;text-align:right;font-weight:600;font-size:11px}
+.trd-court-tag{font-size:9px;color:var(--muted);background:rgba(255,255,255,.05);
+  padding:1px 5px;border-radius:4px;margin-left:4px}
+
+.trd-share-btn{flex:1;padding:10px;background:var(--gold);color:#000;border:none;
+  border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;touch-action:manipulation}
+.trd-share-btn:active{opacity:.8}
+
+/* ══ Player Card — Rating Breakdown ═════════════════════════ */
+.pcard-rating-breakdown{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.pcard-rb-row{display:flex;align-items:center;gap:6px;font-size:11px}
+.pcard-rb-label{min-width:70px;color:var(--muted)}
+.pcard-rb-bar{flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+.pcard-rb-fill{height:100%;border-radius:3px;transition:width .3s ease}
+.pcard-rb-fill.m{background:linear-gradient(90deg,#4da8da,#4da8da88)}
+.pcard-rb-fill.w{background:linear-gradient(90deg,#e94560,#e9456088)}
+.pcard-rb-fill.mix{background:linear-gradient(90deg,#c77dff,#c77dff88)}
+.pcard-rb-val{min-width:34px;text-align:right;font-weight:600;color:#fff;font-size:11px}
+.pcard-rb-trn{font-size:9px;color:var(--muted);min-width:44px;text-align:right}
+
+/* ══ Player Card — Form Trend ════════════════════════════════ */
+.pcard-form-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  padding:8px 10px;background:rgba(255,255,255,.03);border-radius:8px;margin-top:4px}
+.pcard-form-item{font-size:14px}
+.pcard-form-arrow{font-size:10px;color:var(--muted)}
+.pcard-form-label{font-size:11px;color:var(--muted);margin-left:auto}
+
+/* ══ Player Card — Best Partners ═════════════════════════════ */
+.pcard-partners{display:flex;flex-direction:column;gap:4px}
+.pcard-partner-row{display:flex;align-items:center;gap:8px;padding:6px 8px;
+  background:rgba(199,125,255,.04);border:1px solid rgba(199,125,255,.1);border-radius:6px}
+.pcard-partner-rank{font-size:12px;min-width:20px;text-align:center;font-weight:700;color:#c77dff}
+.pcard-partner-name{flex:1;font-size:12px;color:#fff;font-weight:500}
+.pcard-partner-pts{font-size:12px;font-weight:700;color:#c77dff}
+.pcard-partner-info{font-size:9px;color:var(--muted)}
+
+/* ══ Progression Chart ════════════════════════════════════════ */
+.prog-chart-wrap{margin-bottom:12px;padding:12px;background:rgba(255,255,255,.02);
+  border:1px solid #1e1e34;border-radius:10px}
+.prog-chart-title{font-size:11px;font-weight:700;color:var(--gold);
+  letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px}
+.prog-chart{display:flex;align-items:flex-end;gap:3px;height:80px}
+.prog-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;
+  cursor:pointer;min-width:0}
+.prog-bar-col:hover .prog-bar{opacity:1;filter:brightness(1.2)}
+.prog-bar-val{font-size:8px;color:var(--muted);margin-bottom:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.prog-bar{width:100%;min-height:4px;border-radius:3px 3px 0 0;
+  background:linear-gradient(180deg,var(--gold),rgba(255,215,0,.25));opacity:.8;
+  transition:all .15s}
+.prog-bar-lbl{font-size:7px;color:var(--muted);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
+
+/* ══ Archive Search & Sort ════════════════════════════════════ */
+.arch-search-row{display:flex;gap:6px;margin-bottom:10px}
+.arch-search-inp{flex:1;padding:8px 12px;border-radius:8px;
+  border:1px solid #2a2a44;background:rgba(255,255,255,.05);
+  color:#fff;font-size:13px;font-family:'Barlow',sans-serif;outline:none;box-sizing:border-box}
+.arch-search-inp:focus{border-color:var(--gold)}
+.arch-search-inp::placeholder{color:var(--muted)}
+.arch-sort-sel{padding:8px 10px;border-radius:8px;
+  border:1px solid #2a2a44;background:#1a1e24;color:#fff;font-size:12px;
+  font-family:'Barlow',sans-serif;cursor:pointer;min-width:80px}
+
+/* ══ Player Card — Score Histogram ═══════════════════════════ */
+.pcard-histogram{display:flex;align-items:flex-end;gap:3px;height:48px;
+  padding:8px 4px 4px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:6px}
+.pcard-hist-bar{flex:1;min-width:0;border-radius:3px 3px 0 0;
+  background:linear-gradient(180deg,var(--gold),rgba(255,215,0,.3));transition:height .2s ease}
+.pcard-hist-bar.rest{background:rgba(255,255,255,.08)}
+.pcard-hist-lbl{text-align:center;font-size:8px;color:var(--muted);margin-top:2px}
