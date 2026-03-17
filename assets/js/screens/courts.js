@@ -58,7 +58,8 @@ function renderCourt(ci) {
   for (let ri = 0; ri < ppc; ri++) {
     if (ri !== curRi) continue; // показываем только выбранный раунд
     html += `<div class="round-lbl">Раунд ${ri+1}</div>`;
-    for (let mi = 0; mi < ppc; mi++) {
+    for (let i = 0; i < ppc; i++) {
+      const mi = (i * 2 + ri) % ppc;
       const wi  = partnerW(mi, ri);
       const sc  = scores[ci]?.[mi]?.[ri] ?? null;
       const isNull = sc===null;
@@ -259,7 +260,8 @@ function renderDivCourt(key, svodM, svodW) {
   for (let ri = 0; ri < Nd; ri++) {
     if (ri !== curDivRi) continue;
     html+=`<div class="round-lbl">Раунд ${ri+1}</div>`;
-    for (let mi = 0; mi < Nd; mi++) {
+    for (let i = 0; i < Nd; i++) {
+      const mi = (i * 2 + ri) % Nd;
       const wi  = divPartnerW(mi, ri, Nd);
       const sc  = (divScores[key][mi]??[])[ri] ?? null;
       const isNull = sc===null;
