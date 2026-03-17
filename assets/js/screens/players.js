@@ -68,7 +68,9 @@ function renderPlayers() {
       <div class="plr-empty-icon">${q ? '🔍' : g==='M'?'🏋️':g==='W'?'👩':'🤝'}</div>
       ${q ? `Нет совпадений для «${esc(q)}»`
           : g==='Mix' ? 'Нет игроков с рейтингом микст. Проведите микст-турнир.'
-          : 'Нет игроков. Добавляйте и редактируйте через ⚙️ Ростер.'}
+          : 'Нет игроков. Добавляйте через ⚙️ Ростер или загрузите из сети.'}
+      ${!q && db.length === 0 ? `
+      <button onclick="importPublicData()" style="margin-top:16px;padding:11px 22px;background:#4DA8DA;color:#fff;border:none;border-radius:9px;font-family:var(--font-b,sans-serif);font-weight:700;font-size:13px;letter-spacing:.4px;cursor:pointer;">📥 Загрузить рейтинг из GitHub</button>` : ''}
     </div>` : list.map((p, i) => {
       const zn     = zoneMeta(i + 1);
       const rPts   = p[ratingField] || 0;
@@ -96,9 +98,10 @@ function renderPlayers() {
 
   return `
 <div class="plr-wrap">
-  <div class="plr-header">
+  <div class="plr-header" style="position:relative">
     <div class="plr-title">🔥 РЕЙТИНГ ЛЮТЫХ ИГРОКОВ</div>
     <div class="plr-sub">Professional Points — места, зоны, статистика</div>
+    <button onclick="importPublicData()" title="Загрузить рейтинг из GitHub" style="position:absolute;right:0;top:2px;background:rgba(77,168,218,.15);border:1px solid rgba(77,168,218,.35);color:#4DA8DA;border-radius:7px;padding:5px 9px;font-size:13px;cursor:pointer;line-height:1;">📥</button>
   </div>
 
   <!-- Stats chips -->
@@ -277,4 +280,56 @@ function _downloadJson(data, filename) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ── Import leaderboard from GitHub static JSON into local playerDB ────────────
+async function importPublicData() {
+  try {
+    showToast('⏳ Загружаю данные…', 'info');
+    const r = await fetch('./data/leaderboard.json?_=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+
+    let count = 0;
+    // M and W — straightforward, gender matches division
+    ['M', 'W'].forEach(div => {
+      const arr = Array.isArray(data[div]) ? data[div] : [];
+      arr.forEach(entry => {
+        if (!entry.name) return;
+        const ratingField = div === 'M' ? 'ratingM' : 'ratingW';
+        const trnField    = div === 'M' ? 'tournamentsM' : 'tournamentsW';
+        upsertPlayerInDB({
+          name:       entry.name,
+          gender:     div,
+          [ratingField]: entry.rating      || 0,
+          [trnField]:    entry.tournaments || 0,
+          wins:          entry.wins        || 0,
+          lastSeen:      entry.last_seen   || '',
+          status:        'active',
+        });
+        count++;
+      });
+    });
+    // Mix — gender from entry itself
+    const mixArr = Array.isArray(data.Mix) ? data.Mix : [];
+    mixArr.forEach(entry => {
+      if (!entry.name) return;
+      upsertPlayerInDB({
+        name:            entry.name,
+        gender:          entry.gender || 'M',
+        ratingMix:       entry.rating      || 0,
+        tournamentsMix:  entry.tournaments || 0,
+        wins:            entry.wins        || 0,
+        lastSeen:        entry.last_seen   || '',
+        status:          'active',
+      });
+      count++;
+    });
+
+    const s = document.getElementById('screen-players');
+    if (s) s.innerHTML = renderPlayers();
+    showToast(`✅ Загружено ${count} игроков из leaderboard.json`, 'success');
+  } catch (e) {
+    showToast('❌ Ошибка загрузки: ' + e.message, 'error');
+  }
 }
