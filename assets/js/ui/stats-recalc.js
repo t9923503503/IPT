@@ -35,13 +35,17 @@ function recalcAllPlayerStats(silent = false) {
       const tType = t.ratingType || divisionToType(t.division);
 
       // IPT Mixed: accumulate wallet stats from raw rounds (single source of truth)
-      if (t.format === 'IPT Mixed' && t.ipt?.rounds) {
+      if (t.format === 'IPT Mixed' && t.ipt) {
         const ipt = t.ipt;
         const local = {};
         const ensure = id => {
           if (!local[id]) local[id] = { wins: 0, diff: 0, pts: 0, matches: 0 };
         };
-        ipt.rounds.forEach(r => {
+        // Support both new groups[] structure and legacy rounds[]
+        const allRounds = ipt.groups
+          ? ipt.groups.flatMap(g => g.rounds || [])
+          : (ipt.rounds || []);
+        allRounds.forEach(r => {
           (r.courts || []).forEach(c => {
             const team1 = c.team1 || [], team2 = c.team2 || [];
             const s1 = Number(c.score1) || 0, s2 = Number(c.score2) || 0;

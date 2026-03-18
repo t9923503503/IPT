@@ -110,9 +110,18 @@ function renderHome() {
   const pcls = (r,c) => { if (!c) return 'g'; const p=r/c; return p>=1?'r':p>=.8?'y':'g'; };
 
   function cardHtml(t) {
-    const c  = pcls(t.participants.length, t.capacity);
-    const ac = t.status==='open' ? 'var(--gold)' : '#2a2a44';
-    const div = t.division==='Мужской'?'♂':'♀';
+    const c   = pcls(t.participants.length, t.capacity);
+    const isIPT = t.format === 'IPT Mixed';
+    const isActive = t.status === 'active';
+    const isOpen   = t.status === 'open';
+    const ac  = isOpen ? 'var(--gold)' : isIPT && isActive ? '#1a4a8e' : '#2a2a44';
+    const stLabel = isOpen ? 'ОТКРЫТ'
+      : isIPT && isActive ? 'В ИГРЕ'
+      : t.status === 'finished' ? 'ЗАВЕРШЁН'
+      : 'ЗАПОЛНЕНО';
+    const btnLabel = isIPT
+      ? (isActive ? '🏐 Продолжить матч' : t.participants.length >= 8 ? '🏐 Начать матч IPT' : '👥 Добавить игроков')
+      : (isOpen ? '⚡ Записаться' : '📋 В лист ожидания');
     return `
 <div class="trn-card" onclick="openTrnDetails('${escAttr(t.id)}')" style="cursor:pointer">
   <div class="trn-card-accent" style="background:${ac}"></div>
@@ -125,7 +134,7 @@ function renderHome() {
       </div>
       <span class="trn-st ${t.status}">
         <span class="trn-st-dot"></span>
-        ${t.status==='open'?'ОТКРЫТ':'ЗАПОЛНЕНО'}
+        ${stLabel}
       </span>
     </div>
     <div class="trn-fmt">👑 ${esc(t.format)}</div>
@@ -135,16 +144,16 @@ function renderHome() {
     ${t.prize ? `<div class="trn-prize">🏆 Призовой фонд: ${esc(t.prize)}</div>` : ''}
     <div class="trn-prog">
       <div class="trn-prog-hdr">
-        <span class="trn-prog-lbl">Регистрация</span>
+        <span class="trn-prog-lbl">${isIPT ? 'Участники' : 'Регистрация'}</span>
         <span class="trn-prog-val ${c}">${t.participants.length}/${t.capacity}</span>
       </div>
       <div class="trn-prog-bar">
         <div class="trn-prog-fill ${c}" style="width:${pct(t.participants.length,t.capacity)}%"></div>
       </div>
     </div>
-    <button class="trn-btn ${t.status}"
+    <button class="trn-btn ${isIPT ? 'ipt' : t.status}"
       onclick="event.stopPropagation();openTrnDetails('${escAttr(t.id)}')">
-      ${t.status==='open'?'⚡ Записаться':'📋 В лист ожидания'}
+      ${btnLabel}
     </button>
   </div>
 </div>`;

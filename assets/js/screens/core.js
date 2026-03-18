@@ -535,6 +535,21 @@ function syncNavActive() {
   document.querySelectorAll('.nav-pill[data-tab]').forEach(p => {
     p.classList.toggle('active', p.dataset.tab === String(activeTabId));
   });
+  syncIPTNav();
+}
+
+/** Update court pill labels when IPT is active (К1 → ХАРД etc.) */
+function syncIPTNav() {
+  const trnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const trn   = trnId ? getTournaments().find(t => t.id === trnId) : null;
+  const groups = trn?.ipt?.groups;
+  document.querySelectorAll('.nav-pill[data-tab]').forEach(pill => {
+    const tab = parseInt(pill.dataset.tab);
+    if (isNaN(tab)) return;
+    const subEl = pill.querySelector('.pill-sub');
+    if (!subEl) return;
+    subEl.textContent = (groups && groups[tab]) ? groups[tab].name : 'КОРТ';
+  });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -621,6 +636,31 @@ async function _switchTabInner(id) {
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const screen = document.getElementById(`screen-${id}`);
   if (!screen) return;
+
+  // ── IPT mode: override court/division screens ─────────────
+  const _iptTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const _iptTrn   = _iptTrnId ? getTournaments().find(t => t.id === _iptTrnId) : null;
+  if (_iptTrn?.ipt?.groups) {
+    if (typeof id === 'number' && _iptTrn.ipt.groups[id]) {
+      screen.innerHTML = renderIPTGroup(id);
+      screen.classList.add('active');
+      syncNavActive();
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      return;
+    }
+    const _finalsMap = { hard: 0, advance: 1, medium: 2, lite: 3 };
+    if (id in _finalsMap) {
+      const fi = _finalsMap[id];
+      const allDone = _iptTrn.ipt.groups.every(g => g.status === 'finished');
+      if (allDone && fi < _iptTrn.ipt.groups.length) {
+        screen.innerHTML = renderIPTFinals(_iptTrn, fi);
+        screen.classList.add('active');
+        syncNavActive();
+        window.scrollTo({ top: 0, behavior: 'auto' });
+        return;
+      }
+    }
+  }
 
   // Re-render content on demand
   if (id === 'home')    screen.innerHTML = renderHome();

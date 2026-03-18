@@ -18,7 +18,7 @@ function openTrnDetails(trnId) {
   const c    = pcls(parts.length, trn.capacity);
 
   const LV_LABELS  = { hard:'ХАРД', medium:'СРЕДНИЙ', easy:'ЛАЙТ' };
-  const ST_LABELS  = { open:'ОТКРЫТ', full:'ЗАПОЛНЕН', finished:'ЗАВЕРШЁН', cancelled:'ОТМЕНЁН' };
+  const ST_LABELS  = { open:'ОТКРЫТ', full:'ЗАПОЛНЕН', active:'В ИГРЕ', finished:'ЗАВЕРШЁН', cancelled:'ОТМЕНЁН' };
   const plrPills   = parts.slice(0, 8).map(p =>
     `<span class="td-plr-pill">${esc(p.name)}</span>`).join('');
   const moreParts  = parts.length > 8
@@ -89,11 +89,13 @@ function openTrnDetails(trnId) {
     <div class="td-footer">
       ${!isFinished
         ? trn.format === 'IPT Mixed'
-          ? `<button class="td-btn-reg" onclick="openIPT('${escAttr(trn.id)}')">🏐 Начать матч IPT</button>`
+          ? `<button class="td-btn-parts" onclick="document.getElementById('td-modal')?.remove();openParticipantsModal('${escAttr(trn.id)}')">👥 Участники (${parts.length}/${trn.capacity})</button>
+             <button class="td-btn-reg${parts.length < 8 ? ' disabled' : ''}"
+               ${parts.length < 8 ? `disabled title="Нужно минимум 8 участников"` : `onclick="openIPT('${escAttr(trn.id)}')"`}>🏐 Начать матч IPT</button>`
           : `<button class="td-btn-reg ${isFull?'wait':''}" onclick="document.getElementById('td-modal')?.remove();openRegistrationModal('${escAttr(trn.id)}')">
               ${isFull ? '📋 В лист ожидания' : '⚡ Записаться'}
             </button>`
-        : trn.format === 'IPT Mixed' && trn.ipt?.rounds
+        : trn.format === 'IPT Mixed' && (trn.ipt?.rounds || trn.ipt?.groups)
           ? `<button class="td-btn-reg" onclick="openIPT('${escAttr(trn.id)}')">📊 Просмотр IPT</button>`
           : ''}
       <button class="td-btn-close" onclick="document.getElementById('td-modal')?.remove()">Закрыть</button>
