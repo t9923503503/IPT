@@ -98,6 +98,14 @@ function _renderIPTPlayerList() {
 
   const needed = _iptCourts * 8;
 
+  // Удаляем из выбора тех кого нет в текущем отфильтрованном списке
+  const validIds = new Set(db.map(p => p.id));
+  let changed = false;
+  for (const id of [..._iptSelectedIds]) {
+    if (!validIds.has(id)) { _iptSelectedIds.delete(id); changed = true; }
+  }
+  if (changed) localStorage.setItem('kotc3_ipt_sel', JSON.stringify([..._iptSelectedIds]));
+
   // Sort: previously selected first, then by name
   const sorted = [...db].sort((a, b) => {
     const aS = _iptSelectedIds.has(a.id) ? 0 : 1;
