@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'volley-static-v40';
+const CACHE_VERSION = 'volley-static-v41';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -31,6 +31,7 @@ const CORE_ASSETS = [
   './assets/js/screens/home.js',
   './assets/js/screens/stats.js',
   './assets/js/integrations.js',
+  './assets/js/ui/kotc-sync.js',
   './assets/js/ui/roster-auth.js',
   './assets/js/runtime.js',
 ];

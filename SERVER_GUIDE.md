@@ -10,8 +10,8 @@
 | IP адрес | `157.22.173.248` |
 | Домен | `my.adminvps.ru` |
 | ОС | Ubuntu 22.04 LTS |
-| Пользователь | `root` |
-| Пароль | `Onn68F1sQT0U56aphI` |
+| Пользователь | `<SSH_USER>` |
+| Пароль | `<SSH_PASSWORD>` |
 | SSH порт | `22` |
 | Панель | https://my.adminvps.ru |
 
@@ -21,7 +21,7 @@
 
 | Параметр | Значение |
 |----------|---------|
-| Сайт | http://157.22.173.248 |
+| Сайт | https://sv-ugra.ru (или http://157.22.173.248) |
 | Папка сайта | `/var/www/ipt` |
 | GitHub репо 1 | https://github.com/t9923503503/IPT |
 | GitHub репо 2 | https://github.com/t9923503503/2003 |
@@ -35,8 +35,8 @@
 |----------|---------|
 | СУБД | PostgreSQL 14 |
 | База данных | `lpbvolley` |
-| Пользователь БД | `lpbvolley` |
-| Пароль БД | `LpbVolley2026!` |
+| Пользователь БД | `<DB_USER>` |
+| Пароль БД | `<DB_PASSWORD>` |
 | Хост | `localhost:5432` |
 | API (PostgREST) | http://157.22.173.248/api/rest/v1/ |
 | API порт | `3000` (внутренний) |
@@ -50,13 +50,13 @@
 **Windows** — открыть PowerShell или CMD:
 ```bash
 ssh root@157.22.173.248
-# Пароль: Onn68F1sQT0U56aphI
+# Пароль: <SSH_PASSWORD>
 ```
 
 **Mac / Linux** — открыть Терминал:
 ```bash
 ssh root@157.22.173.248
-# Пароль: Onn68F1sQT0U56aphI
+# Пароль: <SSH_PASSWORD>
 ```
 
 **Через SSH-ключ (если настроен):**
@@ -282,10 +282,10 @@ ssh root@157.22.173.248 "cat /var/www/ipt/config.js"
 
 СЕРВЕР:
 - IP: 157.22.173.248
-- SSH: root / Onn68F1sQT0U56aphI
+- SSH: <SSH_USER> / <SSH_PASSWORD>
 - Сайт: http://157.22.173.248
 - Файлы: /var/www/ipt
-- БД: PostgreSQL, база lpbvolley, пользователь lpbvolley / LpbVolley2026!
+- БД: PostgreSQL, база lpbvolley, пользователь <DB_USER> / <DB_PASSWORD>
 - API: PostgREST на порту 3000, проксируется через nginx /api/rest/v1/
 
 GITHUB:
@@ -365,3 +365,17 @@ ssh root@157.22.173.248 "echo OK"
 | Свод | Кнопка СВОД | `svod.js` |
 | Статистика | Кнопка СТАТ | `stats.js` |
 | Финалы HD/MD | Кнопки HD/MD/LT | `core.js` |
+
+---
+
+## 🔐 Хранение секретов (рекомендуется)
+
+- Не храните реальные пароли в `SERVER_GUIDE.md` и других файлах репозитория.
+- Держите значения в локальном `SERVER_GUIDE.local.md` (в `.gitignore`) или в менеджере паролей.
+- Для команд используйте переменные окружения:
+
+```bash
+export SSH_USER="<SSH_USER>"
+export SSH_HOST="157.22.173.248"
+ssh "$SSH_USER@$SSH_HOST"
+```

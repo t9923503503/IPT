@@ -45,6 +45,7 @@ const APP_SCRIPT_ORDER = [
   'assets/js/screens/home.js',
   'assets/js/screens/stats.js',
   'assets/js/integrations.js',
+  'assets/js/ui/kotc-sync.js',
   'assets/js/domain/timers.js',
   'assets/js/ui/roster-auth.js',
   'assets/js/runtime.js',

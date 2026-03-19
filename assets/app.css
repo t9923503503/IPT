@@ -446,8 +446,16 @@ body{
 /* Top sync indicator — above nav (200), below dropdowns */
 .sync-topbar{
   display:none;position:fixed;top:0;left:0;right:0;
-  height:3px;background:linear-gradient(90deg,#3ecf8e,#36b87e);
-  z-index:300;animation:syncBar .6s ease-out forwards;
+  z-index:300;font:600 11px/1 Barlow,sans-serif;letter-spacing:.4px;
+  text-align:center;padding:4px 8px;transition:opacity .3s;
+}
+.sync-topbar.sync-ok{
+  background:linear-gradient(90deg,#1a7a4a,#1e8f56);
+  color:#b6ffdd;border-bottom:1px solid #3ecf8e44;
+}
+.sync-topbar.sync-err{
+  background:linear-gradient(90deg,#6b1a2a,#8f1e33);
+  color:#ffb6c1;border-bottom:1px solid #e9456044;
 }
 @keyframes syncBar{0%{width:0;opacity:1}80%{width:100%;opacity:1}100%{opacity:0}}
 
