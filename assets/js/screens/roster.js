@@ -144,10 +144,11 @@ function _renderIPTPlayerList() {
     return '<span class="ipt-pl-lv ' + (l||'medium') + '">' + (map[l]||'МЕД') + '</span>';
   };
 
-  const items = sorted.map(p => {
-    const chk    = _iptSelectedIds.has(p.id) ? 'checked' : '';
-    const gd     = _normG(p);
-    const gdAttr = gd ? ' data-gender="' + gd + '"' : '';
+  // Генерация одного item
+  function _item(p) {
+    var chk    = _iptSelectedIds.has(p.id) ? 'checked' : '';
+    var gd     = _normG(p);
+    var gdAttr = gd ? ' data-gender="' + gd + '"' : '';
     return '<label class="ipt-pl-item"' + gdAttr
       + ' data-name="' + (p.name||'').replace(/"/g,'')
       + '" data-pid="' + p.id + '">'
@@ -155,22 +156,49 @@ function _renderIPTPlayerList() {
       + '<span class="ipt-pl-name">' + (p.name || '—') + '</span>'
       + lvlBadge(p.level)
       + '</label>';
-  }).join('') || '<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>';
+  }
 
-  const sel  = _iptSelectedIds.size;
-  const selM = [..._iptSelectedIds].filter(id => _normG(db.find(p=>p.id===id)) === 'm').length;
-  const selW = [..._iptSelectedIds].filter(id => _normG(db.find(p=>p.id===id)) === 'w').length;
-  const mixInfo = _iptGender === 'mixed' ? ` <span style="opacity:.6;font-size:.85em">(♂${selM} ♀${selW})</span>` : '';
-  const countColor = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
+  var listHtml = '';
+  var sel  = _iptSelectedIds.size;
+  var selM = 0, selW = 0;
 
-  return `<div class="ipt-ps-wrap">
-    <input class="ipt-ps-inp" type="text" placeholder="🔍 Поиск ${{ male:'мужчины', female:'женщины', mixed:'игрока' }[_iptGender]}..." oninput="iptPlayerSearch(this.value)">
-    <div class="ipt-pl-list">${items}</div>
-    <div class="ipt-ps-footer">
-      <span id="ipt-ps-count" style="color:${countColor}">Выбрано: ${sel} / ${needed}${mixInfo}</span>
-      <button class="ipt-ps-clear-btn" onclick="iptClearSelection()">✕ Сбросить</button>
-    </div>
-  </div>`;
+  if (_iptGender === 'mixed') {
+    // Два отдельных блока: ♂ Мужчины и ♀ Женщины
+    var men   = sorted.filter(function(p) { return _normG(p) === 'm'; });
+    var women = sorted.filter(function(p) { return _normG(p) === 'w'; });
+    selM = [..._iptSelectedIds].filter(function(id) { return _normG(db.find(function(p){return p.id===id;})) === 'm'; }).length;
+    selW = [..._iptSelectedIds].filter(function(id) { return _normG(db.find(function(p){return p.id===id;})) === 'w'; }).length;
+    var halfN   = Math.floor(needed / 2);
+    var mColor  = selM === halfN ? '#6ABF69' : selM > halfN ? '#e94560' : 'var(--muted)';
+    var wColor  = selW === halfN ? '#6ABF69' : selW > halfN ? '#e94560' : 'var(--muted)';
+    var menHtml   = men.map(_item).join('') || '<div class="sc-info" style="padding:6px 0;opacity:.5">Нет мужчин в базе</div>';
+    var womenHtml = women.map(_item).join('') || '<div class="sc-info" style="padding:6px 0;opacity:.5">Нет женщин в базе</div>';
+
+    listHtml = '<div class="ipt-pl-section">'
+      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon m">♂</span> Мужчины <span class="ipt-pl-section-cnt" style="color:' + mColor + '">' + selM + ' / ' + halfN + '</span></div>'
+      + '<div class="ipt-pl-list" data-group="m">' + menHtml + '</div>'
+      + '</div>'
+      + '<div class="ipt-pl-section">'
+      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon w">♀</span> Женщины <span class="ipt-pl-section-cnt" style="color:' + wColor + '">' + selW + ' / ' + halfN + '</span></div>'
+      + '<div class="ipt-pl-list" data-group="w">' + womenHtml + '</div>'
+      + '</div>';
+  } else {
+    var items = sorted.map(_item).join('') || '<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>';
+    listHtml = '<div class="ipt-pl-list">' + items + '</div>';
+  }
+
+  var countColor = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
+  var mixInfo    = _iptGender === 'mixed' ? ' <span style="opacity:.6;font-size:.85em">(♂' + selM + ' ♀' + selW + ')</span>' : '';
+
+  return '<div class="ipt-ps-wrap">'
+    + '<input class="ipt-ps-inp" type="text" placeholder="🔍 Поиск '
+    + ({ male:'мужчины', female:'женщины', mixed:'игрока' }[_iptGender] || 'игрока')
+    + '..." oninput="iptPlayerSearch(this.value)">'
+    + listHtml
+    + '<div class="ipt-ps-footer">'
+    + '<span id="ipt-ps-count" style="color:' + countColor + '">Выбрано: ' + sel + ' / ' + needed + mixInfo + '</span>'
+    + '<button class="ipt-ps-clear-btn" onclick="iptClearSelection()">✕ Сбросить</button>'
+    + '</div></div>';
 }
 
 function iptClearSelection() {

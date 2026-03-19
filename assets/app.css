@@ -2720,3 +2720,20 @@ button.player-tap:active{opacity:.6}
 .ipt-pl-item[data-gender="w"]::before { content: '♀'; color: #e94560; }
 /* убираем старый span-подход */
 .ipt-g-icon { display: none; }
+
+/* ── IPT player list split sections (М/Ж mode) ────────────── */
+.ipt-pl-section { margin-bottom: 8px; }
+.ipt-pl-section-hdr {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 4px 4px; font-size: 13px; font-weight: 600;
+  color: var(--text-secondary, #aaa); border-bottom: 1px solid rgba(255,255,255,.08);
+  margin-bottom: 4px;
+}
+.ipt-pl-section-icon {
+  font-size: 15px; font-weight: 700;
+}
+.ipt-pl-section-icon.m { color: #4DA8DA; }
+.ipt-pl-section-icon.w { color: #e94560; }
+.ipt-pl-section-cnt {
+  margin-left: auto; font-size: 12px; font-weight: 600;
+}
