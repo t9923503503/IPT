@@ -144,15 +144,17 @@ function _renderIPTPlayerList() {
     return '<span class="ipt-pl-lv ' + (l||'medium') + '">' + (map[l]||'МЕД') + '</span>';
   };
 
-  // Генерация одного item
-  function _item(p) {
+  // Генерация одного item с нумерацией
+  function _item(p, idx) {
     var chk    = _iptSelectedIds.has(p.id) ? 'checked' : '';
     var gd     = _normG(p);
     var gdAttr = gd ? ' data-gender="' + gd + '"' : '';
+    var num    = '<span class="ipt-pl-num">' + (idx + 1) + '</span>';
     return '<label class="ipt-pl-item"' + gdAttr
       + ' data-name="' + (p.name||'').replace(/"/g,'')
       + '" data-pid="' + p.id + '">'
       + '<input type="checkbox" ' + chk + ' onchange="iptTogglePlayer(\'' + p.id + '\')">'
+      + num
       + '<span class="ipt-pl-name">' + (p.name || '—') + '</span>'
       + lvlBadge(p.level)
       + '</label>';
@@ -175,11 +177,11 @@ function _renderIPTPlayerList() {
     var womenHtml = women.map(_item).join('') || '<div class="sc-info" style="padding:6px 0;opacity:.5">Нет женщин в базе</div>';
 
     listHtml = '<div class="ipt-pl-section">'
-      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon m">♂</span> Мужчины <span class="ipt-pl-section-cnt" style="color:' + mColor + '">' + selM + ' / ' + halfN + '</span></div>'
+      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon m">♂</span> Мужчины <span class="ipt-pl-section-cnt" style="color:' + mColor + '"><b>' + selM + '</b> / ' + halfN + '</span></div>'
       + '<div class="ipt-pl-list" data-group="m">' + menHtml + '</div>'
       + '</div>'
       + '<div class="ipt-pl-section">'
-      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon w">♀</span> Женщины <span class="ipt-pl-section-cnt" style="color:' + wColor + '">' + selW + ' / ' + halfN + '</span></div>'
+      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon w">♀</span> Женщины <span class="ipt-pl-section-cnt" style="color:' + wColor + '"><b>' + selW + '</b> / ' + halfN + '</span></div>'
       + '<div class="ipt-pl-list" data-group="w">' + womenHtml + '</div>'
       + '</div>';
   } else {
@@ -188,7 +190,7 @@ function _renderIPTPlayerList() {
   }
 
   var countColor = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
-  var mixInfo    = _iptGender === 'mixed' ? ' <span style="opacity:.6;font-size:.85em">(♂' + selM + ' ♀' + selW + ')</span>' : '';
+  var mixInfo    = _iptGender === 'mixed' ? ' <span style="opacity:.6;font-size:.85em">(♂<b>' + selM + '</b> ♀<b>' + selW + '</b>)</span>' : '';
 
   return '<div class="ipt-ps-wrap">'
     + '<input class="ipt-ps-inp" type="text" placeholder="🔍 Поиск '
