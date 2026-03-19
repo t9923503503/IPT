@@ -321,6 +321,18 @@ function finishIPTRound(trnId, groupIdx) {
   }
 
   saveTournaments(arr);
+
+  // Если все группы завершены — разблокировать финалы и перейти на HD
+  const allGroupsDone = trn.ipt.groups.every(g => g.status === 'finished');
+  if (allGroupsDone) {
+    if (typeof syncDivLock === 'function') syncDivLock();
+    showToast('🏆 Все группы завершены! Открываем финал HD…', 'success');
+    setTimeout(() => {
+      if (typeof switchTab === 'function') switchTab('hard');
+    }, 800);
+    return;
+  }
+
   _iptRerender();
 }
 
@@ -372,11 +384,11 @@ function _iptRerender() {
   // IPT now lives on numeric court tabs (0, 1, 2...) — re-render the active one
   if (typeof activeTabId === 'number') {
     const s = document.getElementById(`screen-${activeTabId}`);
-    if (s) { s.innerHTML = renderIPTGroup(activeTabId); return; }
-  }
-  // Legacy fallback: old #screen-ipt
-  if (activeTabId === 'ipt') {
+    if (s) s.innerHTML = renderIPTGroup(activeTabId);
+  } else if (activeTabId === 'ipt') {
     const s = document.getElementById('screen-ipt');
     if (s) s.innerHTML = renderIPT();
   }
+  // Обновить замок финальных кнопок
+  if (typeof syncDivLock === 'function') syncDivLock();
 }

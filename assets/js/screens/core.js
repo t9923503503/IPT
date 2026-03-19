@@ -796,6 +796,22 @@ function hasRound5Score() {
 }
 
 function syncDivLock() {
+  // IPT режим: разблокируем финалы когда все группы завершены
+  const _iptTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const _iptTrn   = _iptTrnId ? getTournaments().find(t => t.id === _iptTrnId) : null;
+  const _iptGroups = _iptTrn?.ipt?.groups;
+  const _rosterIsIPT = typeof _rosterFmt !== 'undefined' && _rosterFmt === 'ipt';
+
+  if (_iptGroups || _rosterIsIPT) {
+    const allDone = _iptGroups ? _iptGroups.every(g => g.status === 'finished') : false;
+    document.querySelectorAll('.pill-div-btn').forEach(p => {
+      p.classList.toggle('pill-div-locked', !allDone);
+      p.title = allDone ? '' : 'Завершите все группы чтобы открыть финалы';
+    });
+    return;
+  }
+
+  // Стандартный режим
   const unlocked = hasRound5Score();
   const tip = `Добавьте очки в раунде ${ppc} на кортах 1–${nc}, чтобы открыть`;
   document.querySelectorAll('.pill-div-btn').forEach(p => {
