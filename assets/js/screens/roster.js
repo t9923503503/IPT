@@ -144,17 +144,20 @@ function _renderIPTPlayerList() {
     return '<span class="ipt-pl-lv ' + (l||'medium') + '">' + (map[l]||'МЕД') + '</span>';
   };
 
-  // Генерация одного item с нумерацией
+  // Генерация одного item с нумерацией + кнопка смены пола
   function _item(p, idx) {
     var chk    = _iptSelectedIds.has(p.id) ? 'checked' : '';
     var gd     = _normG(p);
     var gdAttr = gd ? ' data-gender="' + gd + '"' : '';
     var num    = '<span class="ipt-pl-num">' + (idx + 1) + '</span>';
+    var swapBtn = '<button class="ipt-swap-g ' + (gd === 'w' ? 'w' : 'm')
+      + '" onclick="event.preventDefault();event.stopPropagation();iptSwapGender(\'' + p.id + '\')">'
+      + (gd === 'w' ? '♀' : '♂') + '</button>';
     return '<label class="ipt-pl-item"' + gdAttr
       + ' data-name="' + (p.name||'').replace(/"/g,'')
       + '" data-pid="' + p.id + '">'
       + '<input type="checkbox" ' + chk + ' onchange="iptTogglePlayer(\'' + p.id + '\')">'
-      + num
+      + num + swapBtn
       + '<span class="ipt-pl-name">' + (p.name || '—') + '</span>'
       + lvlBadge(p.level)
       + '</label>';
@@ -210,6 +213,19 @@ function _renderIPTPlayerList() {
     + '<span id="ipt-ps-count" style="color:' + countColor + '">Выбрано: ' + sel + ' / ' + needed + mixInfo + '</span>'
     + '<button class="ipt-ps-clear-btn" onclick="iptClearSelection()">✕ Сбросить</button>'
     + '</div></div>';
+}
+
+// Переключить пол игрока М↔Ж в базе
+function iptSwapGender(pid) {
+  var db = loadPlayerDB();
+  var p = db.find(function(d) { return d.id === pid; });
+  if (!p) return;
+  var cur = _normG(p);
+  p.gender = cur === 'w' ? 'M' : 'W';
+  savePlayerDB(db);
+  // Перерисовать карточку
+  var card = document.getElementById('fmt-settings-card');
+  if (card) card.outerHTML = _renderFmtCard();
 }
 
 // Выбрать всех в группе (m или w)

@@ -2754,3 +2754,14 @@ button.player-tap:active{opacity:.6}
 }
 .ipt-sec-btn.off { color: #e94560; }
 .ipt-sec-btn:active { opacity: .7; }
+
+/* ── IPT swap gender button ────────────────────────────────── */
+.ipt-swap-g {
+  width: 22px; height: 22px; border-radius: 50%; border: none;
+  font-size: 12px; cursor: pointer; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-right: 4px;
+}
+.ipt-swap-g.m { background: rgba(77,168,218,.2); color: #4DA8DA; }
+.ipt-swap-g.w { background: rgba(233,69,96,.2); color: #e94560; }
+.ipt-swap-g:active { opacity: .6; }
