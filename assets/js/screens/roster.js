@@ -145,22 +145,24 @@ function _renderIPTPlayerList() {
   };
 
   // Генерация одного item с нумерацией + кнопка смены пола
+  // div вместо label — чтобы кнопка ♂/♀ кликалась отдельно от checkbox
   function _item(p, idx) {
     var chk    = _iptSelectedIds.has(p.id) ? 'checked' : '';
     var gd     = _normG(p);
     var gdAttr = gd ? ' data-gender="' + gd + '"' : '';
     var num    = '<span class="ipt-pl-num">' + (idx + 1) + '</span>';
     var swapBtn = '<button class="ipt-swap-g ' + (gd === 'w' ? 'w' : 'm')
-      + '" onclick="event.preventDefault();event.stopPropagation();iptSwapGender(\'' + p.id + '\')">'
+      + '" onclick="iptSwapGender(\'' + p.id + '\')">'
       + (gd === 'w' ? '♀' : '♂') + '</button>';
-    return '<label class="ipt-pl-item"' + gdAttr
+    return '<div class="ipt-pl-item"' + gdAttr
       + ' data-name="' + (p.name||'').replace(/"/g,'')
       + '" data-pid="' + p.id + '">'
       + '<input type="checkbox" ' + chk + ' onchange="iptTogglePlayer(\'' + p.id + '\')">'
       + num + swapBtn
-      + '<span class="ipt-pl-name">' + (p.name || '—') + '</span>'
+      + '<span class="ipt-pl-name" onclick="iptTogglePlayer(\'' + p.id + '\');this.parentElement.querySelector(\'input\').checked=!this.parentElement.querySelector(\'input\').checked">'
+      + (p.name || '—') + '</span>'
       + lvlBadge(p.level)
-      + '</label>';
+      + '</div>';
   }
 
   var listHtml = '';

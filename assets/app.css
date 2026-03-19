@@ -2765,3 +2765,6 @@ button.player-tap:active{opacity:.6}
 .ipt-swap-g.m { background: rgba(77,168,218,.2); color: #4DA8DA; }
 .ipt-swap-g.w { background: rgba(233,69,96,.2); color: #e94560; }
 .ipt-swap-g:active { opacity: .6; }
+
+/* ── IPT item: div instead of label — name clickable ──────── */
+.ipt-pl-item .ipt-pl-name { cursor: pointer; flex: 1; }
