@@ -88,8 +88,8 @@ function iptPlayerSearch(query) {
 }
 
 function _renderIPTPlayerList() {
-  // Фильтр по гендеру: male→'m', female→'f', mixed→все
-  const genderFilter = { male: 'm', female: 'f', mixed: null };
+  // В базе: gender='M' (мужчины) / 'W' (женщины)
+  const genderFilter = { male: 'M', female: 'W', mixed: null };
   const gf = genderFilter[_iptGender] || null;
 
   const db = loadPlayerDB()
