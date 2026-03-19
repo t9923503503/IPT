@@ -2710,3 +2710,13 @@ button.player-tap:active{opacity:.6}
   font-size: 11px; opacity: .55; margin-right: 4px;
   font-family: sans-serif;
 }
+
+/* ── IPT gender icon via CSS ::before (инвариантна к JS re-render) ── */
+.ipt-pl-item[data-gender]::before {
+  font-size: 11px; opacity: .6; margin-right: 5px; flex-shrink: 0;
+  font-family: sans-serif;
+}
+.ipt-pl-item[data-gender="m"]::before { content: '♂'; color: #4DA8DA; }
+.ipt-pl-item[data-gender="w"]::before { content: '♀'; color: #e94560; }
+/* убираем старый span-подход */
+.ipt-g-icon { display: none; }

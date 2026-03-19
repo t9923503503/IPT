@@ -139,14 +139,15 @@ function _renderIPTPlayerList() {
   };
 
   const items = sorted.map(p => {
-    const chk   = _iptSelectedIds.has(p.id) ? 'checked' : '';
-    const gIcon = p.gender === 'M' ? '♂' : p.gender === 'W' ? '♀' : '';
-    const gBadge = _iptGender === 'mixed'
-      ? '<span class="ipt-g-icon">' + gIcon + '</span>'
-      : '';
-    return '<label class="ipt-pl-item" data-name="' + (p.name||'').replace(/"/g,'') + '" data-pid="' + p.id + '">'
+    const chk = _iptSelectedIds.has(p.id) ? 'checked' : '';
+    const gd  = p.gender === 'M' ? 'm' : p.gender === 'W' ? 'w' : '';
+    // data-gender на label → иконка через CSS ::before, JS её не сотрёт
+    const gdAttr = (_iptGender === 'mixed' && gd) ? ' data-gender="' + gd + '"' : '';
+    return '<label class="ipt-pl-item"' + gdAttr
+      + ' data-name="' + (p.name||'').replace(/"/g,'')
+      + '" data-pid="' + p.id + '">'
       + '<input type="checkbox" ' + chk + ' onchange="iptTogglePlayer(\'' + p.id + '\')">'
-      + '<span class="ipt-pl-name">' + gBadge + (p.name || '—') + '</span>'
+      + '<span class="ipt-pl-name">' + (p.name || '—') + '</span>'
       + lvlBadge(p.level)
       + '</label>';
   }).join('') || '<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>';
