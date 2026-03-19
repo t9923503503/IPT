@@ -176,12 +176,21 @@ function _renderIPTPlayerList() {
     var menHtml   = men.map(_item).join('') || '<div class="sc-info" style="padding:6px 0;opacity:.5">Нет мужчин в базе</div>';
     var womenHtml = women.map(_item).join('') || '<div class="sc-info" style="padding:6px 0;opacity:.5">Нет женщин в базе</div>';
 
+    var mBtns = '<span class="ipt-pl-section-btns">'
+      + '<button class="ipt-sec-btn" onclick="iptSelectGroup(\'m\')">Все ✓</button>'
+      + '<button class="ipt-sec-btn off" onclick="iptDeselectGroup(\'m\')">✕</button>'
+      + '</span>';
+    var wBtns = '<span class="ipt-pl-section-btns">'
+      + '<button class="ipt-sec-btn" onclick="iptSelectGroup(\'w\')">Все ✓</button>'
+      + '<button class="ipt-sec-btn off" onclick="iptDeselectGroup(\'w\')">✕</button>'
+      + '</span>';
+
     listHtml = '<div class="ipt-pl-section">'
-      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon m">♂</span> Мужчины <span class="ipt-pl-section-cnt" style="color:' + mColor + '"><b>' + selM + '</b> / ' + halfN + '</span></div>'
+      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon m">♂</span> Мужчины ' + mBtns + '<span class="ipt-pl-section-cnt" style="color:' + mColor + '"><b>' + selM + '</b> / ' + halfN + '</span></div>'
       + '<div class="ipt-pl-list" data-group="m">' + menHtml + '</div>'
       + '</div>'
       + '<div class="ipt-pl-section">'
-      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon w">♀</span> Женщины <span class="ipt-pl-section-cnt" style="color:' + wColor + '"><b>' + selW + '</b> / ' + halfN + '</span></div>'
+      + '<div class="ipt-pl-section-hdr"><span class="ipt-pl-section-icon w">♀</span> Женщины ' + wBtns + '<span class="ipt-pl-section-cnt" style="color:' + wColor + '"><b>' + selW + '</b> / ' + halfN + '</span></div>'
       + '<div class="ipt-pl-list" data-group="w">' + womenHtml + '</div>'
       + '</div>';
   } else {
@@ -201,6 +210,28 @@ function _renderIPTPlayerList() {
     + '<span id="ipt-ps-count" style="color:' + countColor + '">Выбрано: ' + sel + ' / ' + needed + mixInfo + '</span>'
     + '<button class="ipt-ps-clear-btn" onclick="iptClearSelection()">✕ Сбросить</button>'
     + '</div></div>';
+}
+
+// Выбрать всех в группе (m или w)
+function iptSelectGroup(g) {
+  var db = loadPlayerDB().filter(function(p) { return !p.id.startsWith('ipt_quick_'); });
+  db.forEach(function(p) {
+    if (_normG(p) === g) _iptSelectedIds.add(p.id);
+  });
+  localStorage.setItem('kotc3_ipt_sel', JSON.stringify([..._iptSelectedIds]));
+  var card = document.getElementById('fmt-settings-card');
+  if (card) card.outerHTML = _renderFmtCard();
+}
+
+// Убрать всех из группы (m или w)
+function iptDeselectGroup(g) {
+  var db = loadPlayerDB().filter(function(p) { return !p.id.startsWith('ipt_quick_'); });
+  db.forEach(function(p) {
+    if (_normG(p) === g) _iptSelectedIds.delete(p.id);
+  });
+  localStorage.setItem('kotc3_ipt_sel', JSON.stringify([..._iptSelectedIds]));
+  var card = document.getElementById('fmt-settings-card');
+  if (card) card.outerHTML = _renderFmtCard();
 }
 
 function iptClearSelection() {
