@@ -329,19 +329,13 @@ function _renderFmtCard() {
     <div class="sc-row" style="margin-top:10px">
       <span class="sc-lbl">Кортов:</span>
       <div class="seg" id="seg-c">
-        ${[1,2,3,4].map(v=>{
-          const disabled = v !== 4;
-          return `<button class="seg-btn${_nc===v?' on':''}" ${disabled?'disabled':''} onclick="setPending(${v},_ppc)">${v}</button>`;
-        }).join('')}
+        ${[1,2,3,4].map(v=>`<button class="seg-btn${_nc===v?' on':''}" onclick="setPending(${v},_ppc)">${v}</button>`).join('')}
       </div>
     </div>
     <div class="sc-row">
       <span class="sc-lbl">Игроков:</span>
       <div class="seg" id="seg-n">
-        ${[4,5].map(v=>{
-          const disabled = v !== 4;
-          return `<button class="seg-btn${_ppc===v?' on':''}" ${disabled?'disabled':''} onclick="setPending(_nc,${v})">${v}</button>`;
-        }).join('')}
+        ${[4,5].map(v=>`<button class="seg-btn${_ppc===v?' on':''}" onclick="setPending(_nc,${v})">${v}</button>`).join('')}
       </div>
     </div>
     <div class="sc-info" id="sc-info">
@@ -458,8 +452,8 @@ function setPending(newNc, newPpc) {
   _nc = 4;
   _ppc = 4;
   // Update seg buttons
-  document.querySelectorAll('#seg-c .seg-btn').forEach((b)=>b.classList.toggle('on', b.textContent.trim() === '4'));
-  document.querySelectorAll('#seg-n .seg-btn').forEach((b)=>b.classList.toggle('on', b.textContent.trim() === '4'));
+  document.querySelectorAll('#seg-c .seg-btn').forEach((b)=>b.classList.toggle('on', parseInt(b.textContent.trim()) === _nc));
+  document.querySelectorAll('#seg-n .seg-btn').forEach((b)=>b.classList.toggle('on', parseInt(b.textContent.trim()) === _ppc));
   // Update info text
   const info = document.getElementById('sc-info');
   if (info) info.innerHTML = `${_nc} корт(а) × ${_ppc} = <strong>${_nc*_ppc}м + ${_nc*_ppc}ж</strong>`;
