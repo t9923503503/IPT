@@ -4,68 +4,61 @@
 // KOTC AUTO-SYNC  (Вариант Б — автосинхронизация)
 // localStorage ↔ PostgreSQL (PostgREST API)
 //
-// Стратегия хранения в БД:
-//   - Каждый турнир → одна строка в таблице "tournaments"
-//       id          = tournament.id  (TEXT PRIMARY KEY)
-//       name        = tournament.name
-//       date        = tournament.date
-//       status      = tournament.status
-//       game_state  = полный объект турнира (JSONB)
-//       synced_at   = метка времени
-//   - База игроков → строка с id='__playerdb__' в той же таблице
-//       game_state  = { players: [...] }
+// Стратегия хранения в БД (таблица "tournaments"):
+//   external_id  = tournament.id (наш локальный TEXT-ключ)
+//   name         = tournament.name
+//   date         = tournament.date
+//   status       = tournament.status
+//   game_state   = полный объект турнира (JSONB)
+//   synced_at    = метка времени
 //
-// На загрузке: fetch из БД → мерж в localStorage (DB wins только новые записи)
-// На изменении: debounce → upsert в БД
+// База игроков → строка с external_id='__playerdb__':
+//   game_state = { players: [...] }
+//
+// На загрузке: fetch из БД → мерж только новых записей в localStorage
+// На изменении: debounce → upsert в БД через external_id
 // ═══════════════════════════════════════════════════════════════════
 
-const _SYNC_PLAYERDB_ID    = '__playerdb__';
-const _SYNC_DEBOUNCE_TRN   = 2000;   // 2s после saveTournaments
-const _SYNC_DEBOUNCE_PLR   = 3000;   // 3s после savePlayerDB
-const _SYNC_RETRY_DELAY    = 30000;  // 30s retry при ошибке сети
+const _SYNC_PLAYERDB_ID  = '__playerdb__';
+const _SYNC_DEBOUNCE_TRN = 2000;   // 2s после saveTournaments
+const _SYNC_DEBOUNCE_PLR = 3000;   // 3s после savePlayerDB
+const _SYNC_RETRY_DELAY  = 30000;  // 30s пауза после ошибки сети
 
-let _syncEnabled     = false;
-let _syncApiBase     = '';
-let _syncHeaders     = {};
-let _syncTrnTimer    = null;
-let _syncPlrTimer    = null;
-let _syncTrnPending  = false;
-let _syncPlrPending  = false;
-let _syncLastError   = 0;
+let _syncEnabled    = false;
+let _syncApiBase    = '';
+let _syncHeaders    = {};
+let _syncTrnTimer   = null;
+let _syncPlrTimer   = null;
+let _syncLastError  = 0;
 
 // ── Инициализация ────────────────────────────────────────────────
 
 function kotcSyncInit() {
   const cfg = window.APP_CONFIG;
-  if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-    // Нет конфига — работаем только локально
-    return;
-  }
+  if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey) return; // нет конфига — только localStorage
 
-  // PostgREST endpoint: supabaseUrl уже содержит /api (см. config.js на сервере)
-  // Суффикс /rest/v1 добавляет Supabase-клиент, но мы работаем через fetch напрямую
+  // supabaseUrl = 'https://sv-ugra.ru/api'  →  PostgREST = .../rest/v1
   let base = cfg.supabaseUrl.replace(/\/$/, '');
-  // Если URL оканчивается на /api — добавляем /rest/v1
-  if (!base.endsWith('/rest/v1')) base = base + '/rest/v1';
+  if (!base.endsWith('/rest/v1')) base += '/rest/v1';
   _syncApiBase = base;
 
   _syncHeaders = {
-    'Content-Type': 'application/json',
+    'Content-Type':  'application/json',
     'apikey':        cfg.supabaseAnonKey,
     'Authorization': 'Bearer ' + cfg.supabaseAnonKey,
   };
   _syncEnabled = true;
 
-  console.log('[kotc-sync] enabled →', _syncApiBase);
+  console.log('[kotc-sync] ✓ enabled →', _syncApiBase);
 
   // Патчим глобальные функции сохранения
   _patchSaveTournaments();
   _patchSavePlayerDB();
 
-  // Загружаем данные из БД при старте
+  // Загружаем данные из БД при старте (после отрисовки UI)
   setTimeout(() => {
-    kotcSyncLoadFromDB().catch(e => console.warn('[kotc-sync] init load failed:', e));
-  }, 1500); // небольшая задержка чтобы UI успел отрисоваться
+    kotcSyncLoadFromDB().catch(e => console.warn('[kotc-sync] init load:', e));
+  }, 1500);
 }
 
 // ── Патчинг функций сохранения ───────────────────────────────────
@@ -92,250 +85,186 @@ function _patchSavePlayerDB() {
 
 function kotcSyncScheduleTournaments() {
   if (!_syncEnabled) return;
-  _syncTrnPending = true;
   clearTimeout(_syncTrnTimer);
   _syncTrnTimer = setTimeout(_doSyncTournaments, _SYNC_DEBOUNCE_TRN);
 }
 
 function kotcSyncSchedulePlayers() {
   if (!_syncEnabled) return;
-  _syncPlrPending = true;
   clearTimeout(_syncPlrTimer);
   _syncPlrTimer = setTimeout(_doSyncPlayers, _SYNC_DEBOUNCE_PLR);
 }
 
-// ── Загрузка из БД ───────────────────────────────────────────────
+// ── Загрузка из БД при старте ────────────────────────────────────
 
 async function kotcSyncLoadFromDB() {
   if (!_syncEnabled) return;
-
   try {
-    // Загружаем все записи из tournaments (включая специальную __playerdb__)
-    const url = _syncApiBase + '/tournaments?select=id,game_state,synced_at&limit=500';
+    const url = _syncApiBase
+      + '/tournaments?select=external_id,game_state,synced_at'
+      + '&external_id=not.is.null&limit=500';
     const resp = await fetch(url, { headers: _syncHeaders });
-
     if (!resp.ok) {
-      const txt = await resp.text();
-      console.warn('[kotc-sync] load failed:', resp.status, txt);
+      console.warn('[kotc-sync] load HTTP', resp.status);
       return;
     }
-
     const rows = await resp.json();
     if (!Array.isArray(rows) || !rows.length) return;
 
-    let trnChanged = false;
-    let plrChanged = false;
+    // Строка с базой игроков
+    const playerRow = rows.find(r => r.external_id === _SYNC_PLAYERDB_ID);
+    // Строки с реальными турнирами
+    const trnRows   = rows.filter(r => r.external_id !== _SYNC_PLAYERDB_ID && r.game_state);
 
-    // Разделяем: специальная строка игроков vs реальные турниры
-    const playerRow = rows.find(r => r.id === _SYNC_PLAYERDB_ID);
-    const trnRows   = rows.filter(r => r.id !== _SYNC_PLAYERDB_ID && r.game_state);
+    let anyChanged = false;
 
-    // Мерж турниров
-    if (trnRows.length > 0) {
-      const local = getTournaments();
-      const localIds = new Set(local.map(t => t.id));
+    // Мерж турниров: добавляем только те, которых нет локально
+    if (trnRows.length) {
+      const local    = getTournaments();
+      const localSet = new Set(local.map(t => t.id));
       let added = 0;
-
       trnRows.forEach(row => {
-        if (!row.game_state || !row.game_state.id) return;
-        if (!localIds.has(row.game_state.id)) {
-          // Турнир есть в БД, но не локально → добавляем
-          local.push(row.game_state);
-          added++;
-        }
-        // Если уже есть локально — доверяем локальной версии (активная игра)
+        const t = row.game_state;
+        if (!t || !t.id) return;
+        if (!localSet.has(t.id)) { local.push(t); added++; }
       });
-
-      if (added > 0) {
-        // Вызываем оригинальную saveTournaments чтобы не запускать sync loop
-        const origSave = _getOrigSaveTournaments();
-        origSave(local);
-        trnChanged = true;
-        console.log('[kotc-sync] added', added, 'tournaments from DB');
+      if (added) {
+        _origSaveTournamentsFn(local);
+        anyChanged = true;
+        console.log('[kotc-sync] +' + added + ' tournaments from DB');
       }
     }
 
-    // Мерж игроков
-    if (playerRow && playerRow.game_state && Array.isArray(playerRow.game_state.players)) {
+    // Мерж игроков: добавляем только тех, кого нет локально
+    if (playerRow && Array.isArray(playerRow.game_state?.players)) {
       const dbPlayers = playerRow.game_state.players;
-      const local = loadPlayerDB();
-      const localIds = new Set(local.map(p => String(p.id)));
+      const local     = loadPlayerDB();
+      const localSet  = new Set(local.map(p => String(p.id)));
       let added = 0;
-
       dbPlayers.forEach(p => {
         if (!p || !p.id) return;
-        if (!localIds.has(String(p.id))) {
-          const canonical = fromLocalPlayer(p);
-          if (canonical && canonical.name) {
-            local.push(canonical);
-            added++;
-          }
+        if (!localSet.has(String(p.id))) {
+          const c = fromLocalPlayer(p);
+          if (c && c.name) { local.push(c); added++; }
         }
       });
-
-      if (added > 0) {
-        const origSave = _getOrigSavePlayerDB();
-        origSave(local);
-        plrChanged = true;
-        console.log('[kotc-sync] added', added, 'players from DB');
+      if (added) {
+        _origSavePlayerDBFn(local);
+        anyChanged = true;
+        console.log('[kotc-sync] +' + added + ' players from DB');
       }
     }
 
-    if (trnChanged || plrChanged) {
-      // Перерисовываем UI если функция доступна
-      if (typeof buildAll === 'function') {
-        try { buildAll(); } catch(e) { /* ignore */ }
-      }
+    if (anyChanged && typeof buildAll === 'function') {
+      try { buildAll(); } catch(_) {}
     }
-
   } catch(e) {
     console.warn('[kotc-sync] load error:', e);
   }
 }
 
-// ── Сохранение турниров в БД ─────────────────────────────────────
+// ── Upsert турниров ──────────────────────────────────────────────
 
 async function _doSyncTournaments() {
   if (!_syncEnabled) return;
-  _syncTrnPending = false;
+  const list = getTournaments();
+  if (!list.length) return;
 
-  const tournaments = getTournaments();
-  if (!tournaments.length) return;
-
-  // Формируем строки для upsert
-  const rows = tournaments.map(t => ({
-    id:         t.id,
-    name:       (t.name || '').slice(0, 200),
-    date:       t.date   || null,
-    status:     t.status || 'open',
-    format:     (t.format || '').slice(0, 100),
-    game_state: t,
-    synced_at:  new Date().toISOString(),
+  const rows = list.map(t => ({
+    external_id: t.id,
+    name:        (t.name   || '').slice(0, 200),
+    date:        t.date    || null,
+    status:      t.status  || 'open',
+    format:      (t.format || '').slice(0, 100),
+    game_state:  t,
+    synced_at:   new Date().toISOString(),
   }));
 
-  await _upsert('tournaments', rows, 'tournaments');
+  await _upsert(rows, 'tournaments');
 }
 
-// ── Сохранение игроков в БД ──────────────────────────────────────
+// ── Upsert базы игроков ──────────────────────────────────────────
 
 async function _doSyncPlayers() {
   if (!_syncEnabled) return;
-  _syncPlrPending = false;
-
   const players = loadPlayerDB();
   if (!players.length) return;
 
-  // Сохраняем весь массив игроков как один JSONB-объект
   const row = {
-    id:         _SYNC_PLAYERDB_ID,
-    name:       '__playerdb__',
-    date:       null,
-    status:     'finished',
-    format:     '',
-    game_state: { players, synced_at: new Date().toISOString() },
-    synced_at:  new Date().toISOString(),
+    external_id: _SYNC_PLAYERDB_ID,
+    name:        '__playerdb__',
+    date:        null,
+    status:      'finished',
+    format:      '',
+    game_state:  { players, synced_at: new Date().toISOString() },
+    synced_at:   new Date().toISOString(),
   };
 
-  await _upsert('tournaments', [row], 'players');
+  await _upsert([row], 'players');
 }
 
-// ── HTTP helper ──────────────────────────────────────────────────
+// ── HTTP upsert ──────────────────────────────────────────────────
 
-async function _upsert(table, rows, label) {
-  // Пропускаем если недавно была ошибка (избегаем спама)
-  if (Date.now() - _syncLastError < _SYNC_RETRY_DELAY) return;
-
+async function _upsert(rows, label) {
+  if (Date.now() - _syncLastError < _SYNC_RETRY_DELAY) return; // throttle после ошибки
   try {
-    const resp = await fetch(_syncApiBase + '/' + table, {
-      method: 'POST',
-      headers: {
-        ..._syncHeaders,
-        'Prefer': 'resolution=merge-duplicates,return=minimal',
-      },
-      body: JSON.stringify(rows),
-    });
-
+    const resp = await fetch(
+      _syncApiBase + '/tournaments?on_conflict=external_id',
+      {
+        method: 'POST',
+        headers: {
+          ..._syncHeaders,
+          'Prefer': 'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify(rows),
+      }
+    );
     if (!resp.ok) {
       const txt = await resp.text();
-      console.warn('[kotc-sync] upsert ' + label + ' failed:', resp.status, txt);
+      console.warn('[kotc-sync] upsert ' + label + ':', resp.status, txt);
       _syncLastError = Date.now();
-      _showSyncError();
+      _showSyncStatus('⚠ Ошибка синхронизации', 'sync-err', 4000);
     } else {
       _syncLastError = 0;
-      console.log('[kotc-sync] synced', label, '(' + rows.length + ' rows)');
-      _showSyncOk(label);
+      _showSyncStatus('☁ Синхронизировано', 'sync-ok', 2000);
     }
   } catch(e) {
-    console.warn('[kotc-sync] network error syncing ' + label + ':', e.message);
+    console.warn('[kotc-sync] network:', e.message);
     _syncLastError = Date.now();
   }
 }
 
-// ── Хелперы для получения оригинальных функций ───────────────────
-// После патча globalThis.savePlayerDB — уже patched версия.
-// Нам нужны оригиналы, чтобы не войти в бесконечный цикл при мерже из БД.
+// ── Индикатор ────────────────────────────────────────────────────
 
-let _origSaveTournamentsFn = null;
-let _origSavePlayerDBFn    = null;
-
-// Вызывается ДО патча в kotcSyncInit
-function _capturOriginals() {
-  _origSaveTournamentsFn = globalThis.saveTournaments;
-  _origSavePlayerDBFn    = globalThis.savePlayerDB;
-}
-
-function _getOrigSaveTournaments() {
-  return _origSaveTournamentsFn || globalThis.saveTournaments;
-}
-function _getOrigSavePlayerDB() {
-  return _origSavePlayerDBFn || globalThis.savePlayerDB;
-}
-
-// ── Индикатор синхронизации (топбар) ────────────────────────────
-
-let _syncIndicatorTimer = null;
-
-function _showSyncOk(label) {
-  const topbar = document.getElementById('sync-topbar');
-  if (!topbar) return;
-  topbar.textContent = '☁ Синхронизировано';
-  topbar.className = 'sync-topbar sync-ok';
-  topbar.style.display = 'block';
-  clearTimeout(_syncIndicatorTimer);
-  _syncIndicatorTimer = setTimeout(() => {
-    topbar.style.display = 'none';
-  }, 2000);
-}
-
-function _showSyncError() {
-  const topbar = document.getElementById('sync-topbar');
-  if (!topbar) return;
-  topbar.textContent = '⚠ Ошибка синхронизации';
-  topbar.className = 'sync-topbar sync-err';
-  topbar.style.display = 'block';
-  clearTimeout(_syncIndicatorTimer);
-  _syncIndicatorTimer = setTimeout(() => {
-    topbar.style.display = 'none';
-  }, 4000);
+let _syncIndTimer = null;
+function _showSyncStatus(msg, cls, ms) {
+  const el = document.getElementById('sync-topbar');
+  if (!el) return;
+  el.textContent = msg;
+  el.className   = 'sync-topbar ' + cls;
+  el.style.display = 'block';
+  clearTimeout(_syncIndTimer);
+  _syncIndTimer = setTimeout(() => { el.style.display = 'none'; }, ms);
 }
 
 // ── Публичный API ────────────────────────────────────────────────
 
-// Принудительная немедленная синхронизация (для кнопки «Синхронизировать»)
+/** Принудительная немедленная синхронизация */
 async function kotcSyncNow() {
-  if (!_syncEnabled) {
-    showToast('Синхронизация не настроена (нет config.js)');
-    return;
-  }
+  if (!_syncEnabled) { showToast('Синхронизация не настроена'); return; }
+  clearTimeout(_syncTrnTimer);
+  clearTimeout(_syncPlrTimer);
   try {
     await _doSyncTournaments();
     await _doSyncPlayers();
     showToast('☁ Синхронизировано с сервером');
   } catch(e) {
-    showToast('⚠ Ошибка синхронизации: ' + e.message);
+    showToast('⚠ Ошибка: ' + e.message);
   }
 }
 
-// Инициализация: сохраняем оригиналы ДО патча, затем патчим
-_capturOriginals();
+// ── Запуск ───────────────────────────────────────────────────────
+// Сохраняем оригиналы ДО патча (чтобы не было loop при merge из БД)
+let _origSaveTournamentsFn = globalThis.saveTournaments;
+let _origSavePlayerDBFn    = globalThis.savePlayerDB;
 kotcSyncInit();
