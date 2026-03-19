@@ -9,8 +9,11 @@ let _iptSelectedIds = new Set(
   JSON.parse(localStorage.getItem('kotc3_ipt_sel') || '[]')
 );
 
-// ── IPT finals nav — always all 4 tabs (HD AV MD LT) ────────
+// ── IPT finals nav keys — зависят от кол-ва групп/кортов ────
 function getIPTFinalsNavKeys(n) {
+  if (n <= 1) return ['hard'];
+  if (n === 2) return ['hard', 'lite'];
+  if (n === 3) return ['hard', 'medium', 'lite'];
   return ['hard', 'advance', 'medium', 'lite'];
 }
 
@@ -127,9 +130,10 @@ function _renderFmtCard() {
   if (_rosterFmt === 'ipt') {
     const needed  = _iptCourts * 8;
     // Nav preview string
-    // К1..К4 — только активные группы; HD AV MD LT — всегда все 4
+    // К1..К[n] — по кол-ву кортов; финалы — по getIPTFinalsNavKeys
     const kLabels = ['К1','К2','К3','К4'].slice(0, _iptCourts).join(' ');
-    const fLabels = 'HD AV MD LT';
+    const fLbl    = { hard:'HD', advance:'AV', medium:'MD', lite:'LT' };
+    const fLabels = getIPTFinalsNavKeys(_iptCourts).map(k => fLbl[k]).join(' ');
 
     return `<div class="settings-card" id="fmt-settings-card">
       <div class="sc-title">⚙️ Формат турнира</div>

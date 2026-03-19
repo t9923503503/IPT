@@ -593,21 +593,14 @@ async function finishTournament() {
     });
   });
 
-  const calcKTotal = (diffSum, matches) => {
-    const C = 15 * matches;
-    if (C <= 0) return 1;
-    const denom = C - diffSum;
-    if (Math.abs(denom) < 1e-9) return 999.99;
-    return (C + diffSum) / denom;
-  };
-
   const players = Array.from(metrics.values()).map(m => {
     const wins = m.wins1 + m.wins2;
     const diff = m.diff1 + m.diff2;
     const pts = m.pts1 + m.pts2;
     const balls = m.balls1 + m.balls2;
     const matches = m.matches1 + m.matches2;
-    const K = calcKTotal(diff, matches);
+    // ThaiVolley32: коэффициент эффективности задаётся с фиксированной константой 60
+    const K = thaiCalcK(diff);
     return { name: m.name, gender: m.gender, courtName: m.courtName, totalPts: pts, wins, diff, pts, balls, K, matchesTotal: matches };
   }).sort((a,b) => {
     if (b.wins  !== a.wins)  return b.wins - a.wins;
@@ -898,9 +891,9 @@ function buildNav() {
   sep.className = 'nav-pill-sep';
   row.appendChild(sep);
 
-  // IPT: всегда HD AV MD LT; стандарт: по activeDivKeys()
+  // IPT: финалы по кол-ву кортов (1→HD, 2→HD+LT, 3→HD+MD+LT, 4→все)
   const divKeys = _isIPT
-    ? ['hard', 'advance', 'medium', 'lite']
+    ? (typeof getIPTFinalsNavKeys === 'function' ? getIPTFinalsNavKeys(courtCount) : ['hard'])
     : activeDivKeys();
 
   divKeys.map(id => ({id, ...ALL_DIV_DEFS[id]})).forEach(({id,icon,main,sub,color}) => {
@@ -1041,14 +1034,15 @@ async function _switchTabInner(id) {
       window.scrollTo({ top: 0, behavior: 'auto' });
       return;
     }
-    // Finals tabs: always HD AV MD LT (all 4), map to group index
-    const _ALL_FINALS = ['hard','advance','medium','lite'];
-    const _finalsMap  = { hard:0, advance:1, medium:2, lite:3 };
-    if (_ALL_FINALS.includes(id)) {
-      const fi      = _finalsMap[id];
+    // Finals tabs: только те что активны по getIPTFinalsNavKeys(groups.length)
+    const _activeFinals = typeof getIPTFinalsNavKeys === 'function'
+      ? getIPTFinalsNavKeys(_iptTrn.ipt.groups.length)
+      : ['hard'];
+    const _finalsIdxMap = { hard:0, advance:1, medium:2, lite:3 };
+    if (_activeFinals.includes(id)) {
+      const fi      = _finalsIdxMap[id];
       const groups  = _iptTrn.ipt.groups;
       const allDone = groups.every(g => g.status === 'finished');
-      // Group exists and all done → show finals
       if (allDone && fi < groups.length) {
         screen.innerHTML = renderIPTFinals(_iptTrn, fi);
         screen.classList.add('active');
@@ -1056,15 +1050,12 @@ async function _switchTabInner(id) {
         window.scrollTo({ top: 0, behavior: 'auto' });
         return;
       }
-      // Group doesn't exist OR groups not finished → "coming soon" stub
-      const _fNames = ['ХАРД','АДВАНС','МЕДИУМ','ЛАЙТ'];
-      const reason  = !allDone
-        ? 'Завершите все группы чтобы открыть финалы'
-        : `Группа ${_fNames[fi]} не участвует в этом турнире`;
+      // Группы не завершены → заглушка
+      const _fNames = { hard:'ХАРД', advance:'АДВАНС', medium:'МЕДИУМ', lite:'ЛАЙТ' };
       screen.innerHTML = `<div class="ipt-wrap"><div class="ipt-finals-stub">
         <div style="font-size:2rem">🏆</div>
-        <div style="font-size:1.1rem;font-weight:700;margin:.5rem 0">${_fNames[fi]}</div>
-        <div style="color:var(--muted);font-size:.85rem">${reason}</div>
+        <div style="font-size:1.1rem;font-weight:700;margin:.5rem 0">${_fNames[id]}</div>
+        <div style="color:var(--muted);font-size:.85rem">Завершите все группы чтобы открыть финалы</div>
       </div></div>`;
       screen.classList.add('active');
       syncNavActive();
