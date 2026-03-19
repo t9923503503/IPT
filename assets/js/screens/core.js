@@ -550,21 +550,14 @@ function syncNavActive() {
   syncIPTNav();
 }
 
-/** Update court pill labels + count when IPT active — full nav rebuild */
+/** Update court pill sub-labels when IPT active (К1→ХАРД etc.) */
 function syncIPTNav() {
-  // When IPT is active, group count may differ from nc → rebuild nav entirely
   const trnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
   const trn   = trnId ? getTournaments().find(t => t.id === trnId) : null;
   const groups = trn?.ipt?.groups;
-  if (!groups) return; // not IPT — pills already correct
-  // Check if current pill count matches group count
-  const existing = document.querySelectorAll('.nav-pill[data-tab]').length;
-  if (existing !== groups.length) {
-    buildNav(); // full rebuild to get right number of К pills
-    return;
-  }
-  // Just update sub-labels without full rebuild
-  document.querySelectorAll('.nav-pill[data-tab]').forEach(pill => {
+  if (!groups) return;
+  // Only update sub-labels of court pills (numeric tab) — NO rebuild to avoid loop
+  document.querySelectorAll('.nav-pill:not(.pill-div-btn)[data-tab]').forEach(pill => {
     const tab = parseInt(pill.dataset.tab);
     if (isNaN(tab)) return;
     const subEl = pill.querySelector('.pill-sub');
