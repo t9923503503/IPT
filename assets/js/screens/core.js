@@ -13,31 +13,111 @@ function womanRounds(ci, wi) {
   return Array.from({length:ppc}, (_,ri) => scores[ci]?.[partnerM(wi,ri)]?.[ri] ?? null);
 }
 
+// ThaiVolley32 (1903.md) — R1 helpers
+// Points map for a single match by diff (ownBalls - oppBalls):
+// >=7 → 3, 3–6 → 2, 1–2 → 1, <=0 → 0
+function thaiDiffToPts(diff){
+  if (diff >= 7) return 3;
+  if (diff >= 3) return 2;
+  if (diff >= 1) return 1;
+  return 0;
+}
+
+// Deterministic perfect matching within a tour for ppc=4 (from 1903.md table).
+// Returns pairs of team indices [miA, miB] that play each other at this tour (ri).
+function iptMatchupsR1(ri){
+  if (ppc !== 4) return [];
+  if (ri === 0) return [[0,1],[2,3]];
+  if (ri === 1) return [[0,2],[1,3]];
+  if (ri === 2) return [[0,3],[1,2]];
+  // ri === 3
+  return [[0,3],[1,2]];
+}
+
+// Deterministic opponent within a tour for ppc=4.
+// mi is "team index" in scores[ci][mi][ri] (man side).
+function iptOppIdxR1(mi, ri){
+  const pairs = iptMatchupsR1(ri);
+  for (const [a, b] of pairs) {
+    if (a === mi) return b;
+    if (b === mi) return a;
+  }
+  return null;
+}
+
+// K = (60 + Σdiff) / (60 - Σdiff) with protection
+function thaiCalcK(diffSum){
+  const denom = 60 - diffSum;
+  if (Math.abs(denom) < 1e-9) return 999.99;
+  return (60 + diffSum) / denom;
+}
+
 // Returns sorted array for a single court+gender
-// Tie-breaking: pts → bestRound → wins → stable index
+// ThaiVolley32 R1 ranking sort:
+// wins → diff → pts → K → balls
 function getRanked(ci, gender) {
   const arr = [];
   for (let i = 0; i < ppc; i++) {
-    const rounds = gender === 'M' ? manRounds(ci, i) : womanRounds(ci, i);
-    const played    = rounds.filter(r=>r!==null);
-    const pts       = played.reduce((a,b)=>a+b, 0);
-    const bestRound = played.length > 0 ? Math.max(...played) : 0;
-    const wins      = played.filter(r=>r>=8).length;
-    const rPlayed   = played.length;
-    arr.push({ idx:i, pts, bestRound, wins, rPlayed });
+    let wins = 0;
+    let diff = 0;
+    let pts = 0;      // earned points (mapped from diff per match)
+    let balls = 0;    // total ownBalls across tours
+    let bestRound = 0; // max ownBalls across tours
+    let rPlayed = 0;  // tours where we had both sides scores
+
+    for (let ri = 0; ri < ppc; ri++) {
+      let own = null;
+      let opp = null;
+
+      if (gender === 'M') {
+        own = scores[ci]?.[i]?.[ri] ?? null;
+        const oppMi = iptOppIdxR1(i, ri);
+        opp = oppMi == null ? null : (scores[ci]?.[oppMi]?.[ri] ?? null);
+      } else {
+        // For a woman player i at tour ri, her team is man index partnerM(i,ri)
+        const manIdx = partnerM(i, ri);
+        own = scores[ci]?.[manIdx]?.[ri] ?? null;
+        const oppMan = iptOppIdxR1(manIdx, ri);
+        opp = oppMan == null ? null : (scores[ci]?.[oppMan]?.[ri] ?? null);
+      }
+
+      if (own === null || opp === null) continue;
+      const d = own - opp;
+      if (own > bestRound) bestRound = own;
+      balls += own;
+      diff += d;
+      pts += thaiDiffToPts(d);
+      if (d > 0) wins++;
+      rPlayed++;
+    }
+
+    const K = thaiCalcK(diff);
+    arr.push({ idx:i, pts, diff, wins, K, balls, bestRound, rPlayed });
   }
+
   arr.sort((a,b) => {
-    if (b.pts       !== a.pts)       return b.pts       - a.pts;
-    if (b.bestRound !== a.bestRound) return b.bestRound - a.bestRound;
-    if (b.wins      !== a.wins)      return b.wins      - a.wins;
+    if (b.wins  !== a.wins)  return b.wins  - a.wins;
+    if (b.diff  !== a.diff)  return b.diff  - a.diff;
+    if (b.pts   !== a.pts)   return b.pts   - a.pts;
+    if (b.K     !== a.K)     return b.K     - a.K;
+    if (b.balls !== a.balls) return b.balls - a.balls;
     return a.idx - b.idx; // stable
   });
-  // Assign place with tie marker
+
+  // Assign place with tie marker: identical up to K and balls
+  const EPS = 1e-9;
   arr.forEach((x, i, s) => {
-    const tied = i > 0 && s[i].pts === s[i-1].pts;
-    x.place = tied ? s[i-1].place : i + 1;
-    x.tied  = tied;
+    const prev = s[i - 1];
+    const tied = !!prev &&
+      prev.wins === x.wins &&
+      prev.diff === x.diff &&
+      prev.pts === x.pts &&
+      Math.abs(prev.K - x.K) < EPS &&
+      prev.balls === x.balls;
+    x.place = tied ? prev.place : i + 1;
+    x.tied = tied;
   });
+
   return arr;
 }
 
@@ -50,10 +130,16 @@ function getAllRanked() {
       const ct   = ALL_COURTS[ci];
       const meta = COURT_META[ci];
       getRanked(ci, gender).forEach(r => {
-        const rounds = gender==='M' ? manRounds(ci,r.idx) : womanRounds(ci,r.idx);
         all.push({
-          pts: r.pts, bestRound: r.bestRound, wins: r.wins,
-          rPlayed: r.rPlayed, courtPlace: r.place, tied: r.tied,
+          pts: r.pts,
+          diff: r.diff,
+          wins: r.wins,
+          K: r.K,
+          balls: r.balls,
+          bestRound: r.bestRound,
+          rPlayed: r.rPlayed,
+          courtPlace: r.place,
+          tied: r.tied,
           name:      gender==='M' ? ct.men[r.idx]   : ct.women[r.idx],
           courtName: meta.name, courtColor: meta.color,
           gender, genderIcon: gender==='M' ? '🏋️' : '👩',
@@ -63,15 +149,24 @@ function getAllRanked() {
     }
     // Global sort with same tie-breaking
     all.sort((a,b) => {
-      if (b.pts       !== a.pts)       return b.pts       - a.pts;
-      if (b.bestRound !== a.bestRound) return b.bestRound - a.bestRound;
-      if (b.wins      !== a.wins)      return b.wins      - a.wins;
+      if (b.wins  !== a.wins)  return b.wins  - a.wins;
+      if (b.diff  !== a.diff)  return b.diff  - a.diff;
+      if (b.pts   !== a.pts)   return b.pts   - a.pts;
+      if (b.K     !== a.K)     return b.K     - a.K;
+      if (b.balls !== a.balls) return b.balls - a.balls;
       return a.originalCourtIndex - b.originalCourtIndex;
     });
     // Assign global rank (shared rank for equal pts)
     all.forEach((p,i,arr) => {
-      const tied = i > 0 && arr[i].pts === arr[i-1].pts;
-      p.globalRank = tied ? arr[i-1].globalRank : i + 1;
+      const prev = arr[i - 1];
+      const EPS = 1e-9;
+      const tied = !!prev &&
+        prev.wins === p.wins &&
+        prev.diff === p.diff &&
+        prev.pts === p.pts &&
+        Math.abs(prev.K - p.K) < EPS &&
+        prev.balls === p.balls;
+      p.globalRank = tied ? prev.globalRank : i + 1;
       p.globalTied = tied;
     });
     out[gender] = all;
@@ -79,21 +174,107 @@ function getAllRanked() {
   return out;
 }
 
-// Compute svod slices — CORE SLICE MATH
-// HARD:    [0 .. ppc-1]           → global places 1..ppc
-// ADVANCE: [ppc .. ppc*2-1]      → global places ppc+1 .. ppc*2
-// MEDIUM:  [ppc*2 .. ppc*3-1]    → global places ppc*2+1 .. ppc*3
-// LITE:    [ppc*3 .. end]         → global places ppc*3+1 ..
+// R2 seeding (HARD/ADV/MED/LIGHT) from R1 courts (1903.md):
+// - HARD: winners from courts 1..3 + best 2nd among courts 1..3
+// - ADV: all players from court 4
+// - MED: remaining 2nd among courts 1..3 + best 2 third among courts 1..3
+// - LIGHT: remaining 3rd among courts 1..3 + all 4th from courts 1..3
+function seedR2FromR1(gender){
+  // Fallback to old slicing if config doesn't match Thai32 expectations
+  if (ppc !== 4 || nc !== 4) {
+    const ranked = getAllRanked();
+    const keys = activeDivKeys();
+    const result = {};
+    keys.forEach((key, i) => {
+      const start = i * ppc;
+      const end = start + ppc;
+      result[key] = ranked[gender].slice(start, end);
+    });
+    return result;
+  }
+
+  const courts = [0,1,2,3]; // 1..4 in docs
+  const rankedByCourt = courts.map(ci => getRanked(ci, gender));
+
+  const toPlayer = (ci, r) => {
+    const ct = ALL_COURTS[ci];
+    const meta = COURT_META[ci];
+    return {
+      idx: r.idx,
+      name: gender === 'M' ? ct.men[r.idx] : ct.women[r.idx],
+      pts: r.pts,
+      diff: r.diff,
+      wins: r.wins,
+      K: r.K,
+      balls: r.balls,
+      bestRound: r.bestRound,
+      rPlayed: r.rPlayed,
+      courtPlace: r.place,
+      tied: r.tied,
+      gender,
+      genderIcon: gender === 'M' ? '🏋️' : '👩',
+      courtName: meta.name,
+      courtColor: meta.color,
+      originalCourtIndex: ci * ppc + r.idx,
+    };
+  };
+
+  const secondCandidates = courts.slice(0,3).map(ci => toPlayer(ci, rankedByCourt[ci][1]));
+  const thirdCandidates  = courts.slice(0,3).map(ci => toPlayer(ci, rankedByCourt[ci][2]));
+  const fourthCandidates = courts.slice(0,3).map(ci => toPlayer(ci, rankedByCourt[ci][3]));
+
+  const keySort = (a,b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    // K may be float — round for stable compares
+    const kA = Math.round(a.K * 1e6);
+    const kB = Math.round(b.K * 1e6);
+    if (kB !== kA) return kB - kA;
+    if (b.balls !== a.balls) return b.balls - a.balls;
+    return a.originalCourtIndex - b.originalCourtIndex;
+  };
+
+  const bestSecond = [...secondCandidates].sort(keySort)[0];
+
+  const remainingSeconds = secondCandidates
+    .filter(p => p.originalCourtIndex !== bestSecond.originalCourtIndex);
+
+  const sortedThird = [...thirdCandidates].sort(keySort);
+  const bestTwoThird = sortedThird.slice(0,2);
+  const remainingThird = sortedThird[2];
+
+  // Zones (each must have exactly ppc players)
+  const hard = [
+    toPlayer(0, rankedByCourt[0][0]),
+    toPlayer(1, rankedByCourt[1][0]),
+    toPlayer(2, rankedByCourt[2][0]),
+    bestSecond,
+  ];
+
+  const advance = toPlayer(3, rankedByCourt[3][0]) && [
+    ...rankedByCourt[3].slice(0,4).map((r) => toPlayer(3, r)),
+  ];
+
+  const medium = [
+    ...remainingSeconds.sort((a,b)=>a.originalCourtIndex-b.originalCourtIndex),
+    ...bestTwoThird, // already ordered by keySort (best first)
+  ];
+
+  const lite = [
+    remainingThird,
+    ...fourthCandidates.sort((a,b)=>a.originalCourtIndex-b.originalCourtIndex),
+  ];
+
+  return { hard, advance, medium, lite };
+}
+
 function getSvod() {
-  const ranked = getAllRanked();
-  const keys = activeDivKeys();
   const result = { hard:{M:[],W:[]}, advance:{M:[],W:[]}, medium:{M:[],W:[]}, lite:{M:[],W:[]} };
-  // Distribute players evenly across active divisions, last div gets remainder
-  keys.forEach((key, i) => {
-    const isLast = i === keys.length - 1;
-    const start  = i * ppc;
-    const end    = isLast ? undefined : start + ppc;
-    result[key] = { M: ranked.M.slice(start, end), W: ranked.W.slice(start, end) };
+  const seededM = seedR2FromR1('M');
+  const seededW = seedR2FromR1('W');
+  DIV_KEYS.forEach(k => {
+    if (!activeDivKeys().includes(k)) return;
+    result[k].M = seededM[k] || [];
+    result[k].W = seededW[k] || [];
   });
   return result;
 }
@@ -117,12 +298,68 @@ function divGetRanked(key, gender) {
   const names = gender==='M' ? divRoster[key].men : divRoster[key].women;
   const Nd = names.length;
   if (!Nd) return [];
-  return names.map((name,i) => {
-    const rounds = gender==='M' ? divManRounds(key,i) : divWomanRounds(key,i);
-    const played = rounds.filter(r=>r!==null);
-    return { idx:i, name, pts: played.reduce((a,b)=>a+b,0), bestRound: played.length>0?Math.max(...played):0, rPlayed:played.length };
-  }).sort((a,b) => b.pts!==a.pts ? b.pts-a.pts : b.bestRound-a.bestRound)
-    .map((x,i)=>({ ...x, place:i+1 }));
+
+  const arr = [];
+  for (let i = 0; i < Nd; i++) {
+    let wins = 0;
+    let diff = 0;
+    let pts = 0;
+    let balls = 0;
+    let bestRound = 0;
+    let rPlayed = 0;
+
+    for (let ri = 0; ri < Nd; ri++) {
+      let own = null;
+      let opp = null;
+
+      if (gender === 'M') {
+        own = (divScores[key]?.[i] ?? [])[ri] ?? null;
+        const oppMi = iptOppIdxR1(i, ri);
+        opp = oppMi == null ? null : ((divScores[key]?.[oppMi] ?? [])[ri] ?? null);
+      } else {
+        const manIdx = divPartnerM(i, ri, Nd);
+        own = (divScores[key]?.[manIdx] ?? [])[ri] ?? null;
+        const oppMan = iptOppIdxR1(manIdx, ri);
+        opp = oppMan == null ? null : ((divScores[key]?.[oppMan] ?? [])[ri] ?? null);
+      }
+
+      if (own === null || opp === null) continue;
+      const d = own - opp;
+      if (own > bestRound) bestRound = own;
+      balls += own;
+      diff += d;
+      pts += thaiDiffToPts(d);
+      if (d > 0) wins++;
+      rPlayed++;
+    }
+
+    const K = thaiCalcK(diff);
+    arr.push({ idx:i, name: names[i], pts, diff, wins, K, balls, bestRound, rPlayed });
+  }
+
+  arr.sort((a,b) => {
+    if (b.wins  !== a.wins)  return b.wins  - a.wins;
+    if (b.diff  !== a.diff)  return b.diff  - a.diff;
+    if (b.pts   !== a.pts)   return b.pts   - a.pts;
+    if (b.K     !== a.K)     return b.K     - a.K;
+    if (b.balls !== a.balls) return b.balls - a.balls;
+    return a.idx - b.idx;
+  });
+
+  const EPS = 1e-9;
+  arr.forEach((x, i, s) => {
+    const prev = s[i - 1];
+    const tied = !!prev &&
+      prev.wins === x.wins &&
+      prev.diff === x.diff &&
+      prev.pts === x.pts &&
+      Math.abs(prev.K - x.K) < EPS &&
+      prev.balls === x.balls;
+    x.place = tied ? prev.place : i + 1;
+    x.tied = tied;
+  });
+
+  return arr;
 }
 
 
@@ -184,12 +421,16 @@ function loadState() {
       ['kotc3_scores','kotc3_divscores','kotc3_divroster'].forEach(k=>localStorage.removeItem(k));
       localStorage.setItem('kotc_version','1.1');
     }
+    // ThaiVolley32 enforcement:
+    // - ppc=4, nc=4
+    // - fixedPairs must stay off to keep rotating partners
+    // This "replace existing" mode should not depend on what was saved before.
     const cfg = localStorage.getItem('kotc3_cfg');
     if (cfg) {
-      const p = JSON.parse(cfg);
-      if ([4,5].includes(+p.ppc))           { ppc = +p.ppc; _ppc = ppc; }
-      if ([1,2,3,4].includes(+p.nc))        { nc  = +p.nc;  _nc  = nc;  }
-      if (typeof p.fixedPairs === 'boolean') fixedPairs = p.fixedPairs;
+      // Keep side effects (e.g., future migrations) but hard-clamp current mode.
+      ppc = 4; nc = 4;
+      _ppc = ppc; _nc = nc;
+      fixedPairs = false;
     }
     const r = localStorage.getItem('kotc3_roster');
     if (r) {
@@ -226,6 +467,58 @@ function loadState() {
 }
 
 // ── Finish & archive tournament ────────────────────────────
+function validateThai32BeforeFinish() {
+  // Highlight helper (inline styling to avoid CSS dependency)
+  const highlight = (el) => {
+    if (!el) return;
+    el.style.outline = '2px solid #e94560';
+    el.style.outlineOffset = '-2px';
+    el.style.borderRadius = '8px';
+  };
+
+  const invalid = [];
+
+  // R1: all courts × all tours must have all mi scores filled (null means "not entered")
+  for (let ci = 0; ci < nc; ci++) {
+    for (let ri = 0; ri < ppc; ri++) {
+      for (let mi = 0; mi < ppc; mi++) {
+        const v = scores[ci]?.[mi]?.[ri];
+        if (v === null || v === undefined) invalid.push({ kind:'r1', ci, mi, ri });
+      }
+    }
+  }
+
+  // R2: validate only divisions that have started (any non-null value)
+  activeDivKeys().forEach(key => {
+    // Any score set?
+    const hasAny = (divScores[key] || []).some((row, mi) =>
+      (row || []).some((v, ri) => mi < ppc && ri < ppc && v !== null && v !== undefined)
+    );
+    if (!hasAny) return;
+
+    for (let mi = 0; mi < ppc; mi++) {
+      for (let ri = 0; ri < ppc; ri++) {
+        const v = (divScores[key]?.[mi] ?? [])[ri];
+        if (v === null || v === undefined) invalid.push({ kind:'r2', key, mi, ri });
+      }
+    }
+  });
+
+  if (!invalid.length) return true;
+
+  // Apply highlights for first batch only (avoid UI overload)
+  invalid.slice(0, 64).forEach(it => {
+    if (it.kind === 'r1') {
+      highlight(document.getElementById(`card-${it.ci}-${it.mi}-${it.ri}`));
+    } else {
+      highlight(document.getElementById(`dcard-${it.key}-${it.mi}-${it.ri}`));
+    }
+  });
+
+  showToast('❌ Нельзя завершить: есть неполные/некорректные данные (подсвечены карточки).', 'error');
+  return false;
+}
+
 async function finishTournament() {
   const name = tournamentMeta.name.trim() || 'Без названия';
   const date = tournamentMeta.date || new Date().toISOString().split('T')[0];
@@ -235,6 +528,9 @@ async function finishTournament() {
   const tempWarn  = tempCount > 0
     ? `\n\n⚠️ В базе ${tempCount} временных игрок(а). Перейдите в Ростер → Администрирование, чтобы слить их с реальными профилями.`
     : '';
+
+  // ThaiVolley32 Zero-Sum validation (block save if incomplete)
+  if (!validateThai32BeforeFinish()) return;
 
   const confirmed = await showConfirm(
     `Завершить турнир «${name}»?\n\nРезультаты сохранятся в архиве.\nТекущие очки и ростер останутся.${tempWarn}`
@@ -518,9 +814,9 @@ function buildNav() {
   sep.className = 'nav-pill-sep';
   row.appendChild(sep);
 
-  // When IPT active: use dynamic finals keys based on group count
+  // When IPT active: always show all 4 finals tabs (HD AV MD LT)
   const divKeys = _iptNavGroups
-    ? (typeof getIPTFinalsNavKeys === 'function' ? getIPTFinalsNavKeys(_iptNavGroups.length) : activeDivKeys())
+    ? ['hard', 'advance', 'medium', 'lite']
     : activeDivKeys();
 
   divKeys.map(id => ({id, ...ALL_DIV_DEFS[id]})).forEach(({id,icon,main,sub,color}) => {
@@ -661,22 +957,35 @@ async function _switchTabInner(id) {
       window.scrollTo({ top: 0, behavior: 'auto' });
       return;
     }
-    // Dynamic finals map: depends on number of groups
-    const _fKeys = typeof getIPTFinalsNavKeys === 'function'
-      ? getIPTFinalsNavKeys(_iptTrn.ipt.groups.length)
-      : ['hard','advance','medium','lite'];
-    const _finalsMap = {};
-    _fKeys.forEach((k, i) => { _finalsMap[k] = i; });
-    if (id in _finalsMap) {
-      const fi = _finalsMap[id];
-      const allDone = _iptTrn.ipt.groups.every(g => g.status === 'finished');
-      if (allDone && fi < _iptTrn.ipt.groups.length) {
+    // Finals tabs: always HD AV MD LT (all 4), map to group index
+    const _ALL_FINALS = ['hard','advance','medium','lite'];
+    const _finalsMap  = { hard:0, advance:1, medium:2, lite:3 };
+    if (_ALL_FINALS.includes(id)) {
+      const fi      = _finalsMap[id];
+      const groups  = _iptTrn.ipt.groups;
+      const allDone = groups.every(g => g.status === 'finished');
+      // Group exists and all done → show finals
+      if (allDone && fi < groups.length) {
         screen.innerHTML = renderIPTFinals(_iptTrn, fi);
         screen.classList.add('active');
         syncNavActive();
         window.scrollTo({ top: 0, behavior: 'auto' });
         return;
       }
+      // Group doesn't exist OR groups not finished → "coming soon" stub
+      const _fNames = ['ХАРД','АДВАНС','МЕДИУМ','ЛАЙТ'];
+      const reason  = !allDone
+        ? 'Завершите все группы чтобы открыть финалы'
+        : `Группа ${_fNames[fi]} не участвует в этом турнире`;
+      screen.innerHTML = `<div class="ipt-wrap"><div class="ipt-finals-stub">
+        <div style="font-size:2rem">🏆</div>
+        <div style="font-size:1.1rem;font-weight:700;margin:.5rem 0">${_fNames[fi]}</div>
+        <div style="color:var(--muted);font-size:.85rem">${reason}</div>
+      </div></div>`;
+      screen.classList.add('active');
+      syncNavActive();
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      return;
     }
   }
 

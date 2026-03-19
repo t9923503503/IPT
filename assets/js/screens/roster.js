@@ -9,11 +9,8 @@ let _iptSelectedIds = new Set(
   JSON.parse(localStorage.getItem('kotc3_ipt_sel') || '[]')
 );
 
-// ── IPT nav keys based on group count ────────────────────────
+// ── IPT finals nav — always all 4 tabs (HD AV MD LT) ────────
 function getIPTFinalsNavKeys(n) {
-  if (n <= 1) return ['hard'];
-  if (n === 2) return ['hard', 'lite'];
-  if (n === 3) return ['hard', 'medium', 'lite'];
   return ['hard', 'advance', 'medium', 'lite'];
 }
 
@@ -130,10 +127,9 @@ function _renderFmtCard() {
   if (_rosterFmt === 'ipt') {
     const needed  = _iptCourts * 8;
     // Nav preview string
+    // К1..К4 — только активные группы; HD AV MD LT — всегда все 4
     const kLabels = ['К1','К2','К3','К4'].slice(0, _iptCourts).join(' ');
-    const fKeys   = getIPTFinalsNavKeys(_iptCourts);
-    const fLbl    = { hard:'HD', advance:'AV', medium:'MD', lite:'LT' };
-    const fLabels = fKeys.map(k => fLbl[k]).join(' ');
+    const fLabels = 'HD AV MD LT';
 
     return `<div class="settings-card" id="fmt-settings-card">
       <div class="sc-title">⚙️ Формат турнира</div>
@@ -188,23 +184,34 @@ function _renderFmtCard() {
     <div class="sc-row" style="margin-top:10px">
       <span class="sc-lbl">Кортов:</span>
       <div class="seg" id="seg-c">
-        ${[1,2,3,4].map(v=>`<button class="seg-btn${_nc===v?' on':''}" onclick="setPending(${v},_ppc)">${v}</button>`).join('')}
+        ${[1,2,3,4].map(v=>{
+          const disabled = v !== 4;
+          return `<button class="seg-btn${_nc===v?' on':''}" ${disabled?'disabled':''} onclick="setPending(${v},_ppc)">${v}</button>`;
+        }).join('')}
       </div>
     </div>
     <div class="sc-row">
       <span class="sc-lbl">Игроков:</span>
       <div class="seg" id="seg-n">
-        ${[4,5].map(v=>`<button class="seg-btn${_ppc===v?' on':''}" onclick="setPending(_nc,${v})">${v}</button>`).join('')}
+        ${[4,5].map(v=>{
+          const disabled = v !== 4;
+          return `<button class="seg-btn${_ppc===v?' on':''}" ${disabled?'disabled':''} onclick="setPending(_nc,${v})">${v}</button>`;
+        }).join('')}
       </div>
     </div>
     <div class="sc-info" id="sc-info">
       ${_nc} корт(а) × ${_ppc} = <strong>${_nc*_ppc}м + ${_nc*_ppc}ж</strong>
     </div>
+    <div class="sc-row" style="margin-top:10px">
+      <span class="sc-lbl">Draft seed:</span>
+      <input class="trn-form-inp" id="thai32-draft-seed" type="number" step="1" min="0"
+        style="flex:1;min-width:120px"
+        value="${escAttr(localStorage.getItem('kotc3_thai32_draft_seed') || '')}"
+        placeholder="авто (если пусто)"/>
+    </div>
     <div class="sc-row">
       <span class="sc-lbl">Пары:</span>
-      <button class="seg-btn fixed-pairs-toggle${fixedPairs?' on':''}" onclick="toggleFixedPairs()">
-        ${fixedPairs ? '🔗 Фиксированные' : '🔄 Ротация'}
-      </button>
+      <button class="seg-btn fixed-pairs-toggle on" disabled onclick="toggleFixedPairs()">🔄 Ротация</button>
     </div>
     <div class="sc-btns">
       <button class="btn-apply" onclick="applySettings()">✅ Применить</button>
@@ -267,7 +274,13 @@ async function launchQuickIPT() {
 }
 
 function toggleFixedPairs() {
-  fixedPairs = !fixedPairs;
+  // ThaiVolley32 requires rotating partners each round,
+  // so we force fixedPairs=false (no-op if already correct).
+  if (fixedPairs === false) {
+    showToast('🔄 Ротация пар обязательна для ThaiVolley32', 'error');
+    return;
+  }
+  fixedPairs = false;
   saveState();
   // Re-render courts to update pair display
   for (let ci = 0; ci < nc; ci++) {
@@ -277,11 +290,11 @@ function toggleFixedPairs() {
   updateDivisions();
   // Update toggle button label without full rebuild
   document.querySelectorAll('.fixed-pairs-toggle').forEach(el => {
-    el.textContent = fixedPairs ? '🔗 Фиксированные' : '🔄 Ротация';
-    el.classList.toggle('on', fixedPairs);
+    el.textContent = '🔄 Ротация';
+    el.classList.toggle('on', false);
   });
   saveState();
-  showToast(fixedPairs ? '🔗 Пары зафиксированы — напарники не меняются' : '🔄 Ротация пар включена');
+  showToast('🔄 Ротация пар включена');
 }
 
 function toggleSolar() {
@@ -295,46 +308,160 @@ function toggleSolar() {
 }
 
 function setPending(newNc, newPpc) {
-  _nc = newNc; _ppc = newPpc;
+  // ThaiVolley32 enforcement: ppc=4, nc=4
+  _nc = 4;
+  _ppc = 4;
   // Update seg buttons
-  document.querySelectorAll('#seg-c .seg-btn').forEach((b,i)=>b.classList.toggle('on', i+1===_nc));
-  document.querySelectorAll('#seg-n .seg-btn').forEach((b,i)=>b.classList.toggle('on', [4,5][i]===_ppc));
+  document.querySelectorAll('#seg-c .seg-btn').forEach((b)=>b.classList.toggle('on', b.textContent.trim() === '4'));
+  document.querySelectorAll('#seg-n .seg-btn').forEach((b)=>b.classList.toggle('on', b.textContent.trim() === '4'));
   // Update info text
   const info = document.getElementById('sc-info');
   if (info) info.innerHTML = `${_nc} корт(а) × ${_ppc} = <strong>${_nc*_ppc}м + ${_nc*_ppc}ж</strong>`;
 }
 
+// ── ThaiVolley32 Draft Engine (1903.md) ───────────────────────
+function thai32IsRealName(n) {
+  const t = String(n ?? '').trim();
+  if (!t) return false;
+  // Auto-placeholders produced by old distribute logic
+  if (/^М\d+$/.test(t) || /^Ж\d+$/.test(t)) return false;
+  return true;
+}
+
+function thai32HashRandKey(seed, gender, name) {
+  // Simple deterministic integer hash → [0..2^32-1]
+  const s = `${seed}|${gender}|${name}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function getThai32DraftSeed() {
+  const el = document.getElementById('thai32-draft-seed');
+  let seed = NaN;
+  if (el) {
+    const raw = String(el.value ?? '').trim();
+    const parsed = raw === '' ? NaN : parseInt(raw, 10);
+    seed = Number.isFinite(parsed) ? parsed : NaN;
+  }
+  if (!Number.isFinite(seed)) {
+    seed = parseInt(localStorage.getItem('kotc3_thai32_draft_seed') || '', 10);
+    if (!Number.isFinite(seed)) seed = Date.now() % 1000000000;
+    if (el) el.value = String(seed);
+  }
+  localStorage.setItem('kotc3_thai32_draft_seed', String(seed));
+  return seed;
+}
+
+function readRosterInputsIntoAllCourts() {
+  document.querySelectorAll('.rc-inp').forEach(inp => {
+    const ci = +inp.dataset.ci;
+    const g = inp.dataset.g;
+    const pi = +inp.dataset.pi;
+    if (!isNaN(ci) && ci < 4) {
+      ALL_COURTS[ci][g][pi] = inp.value.trim();
+    }
+  });
+}
+
+/**
+ * Mutates ALL_COURTS by drafting 16M + 16W into 4 courts (groups of 8).
+ * Returns used seed, or null if roster is incomplete.
+ */
+function runThai32DraftEngine() {
+  const expected = nc * ppc; // 16
+  const men = [];
+  const women = [];
+
+  for (let ci = 0; ci < nc; ci++) {
+    for (let pi = 0; pi < ppc; pi++) {
+      const m = ALL_COURTS[ci].men[pi];
+      const w = ALL_COURTS[ci].women[pi];
+      if (thai32IsRealName(m)) men.push({ name: m, src: ci * ppc + pi });
+      if (thai32IsRealName(w)) women.push({ name: w, src: ci * ppc + pi });
+    }
+  }
+
+  if (men.length !== expected || women.length !== expected) {
+    showToast(
+      `❌ Для Draft Engine нужно заполнить ровно ${expected} мужчин и ${expected} женщин (итого 32). Сейчас: М=${men.length}, Ж=${women.length}`,
+      'error'
+    );
+    return null;
+  }
+
+  const seed = getThai32DraftSeed();
+
+  const sortByRand = (arr, gender) =>
+    [...arr].sort((a, b) => {
+      const ka = thai32HashRandKey(seed, gender, a.name);
+      const kb = thai32HashRandKey(seed, gender, b.name);
+      if (ka !== kb) return ka - kb;
+      const ln = (a.name || '').localeCompare(b.name || '', 'ru');
+      if (ln !== 0) return ln;
+      return a.src - b.src;
+    });
+
+  const menSorted = sortByRand(men, 'M');
+  const womenSorted = sortByRand(women, 'W');
+
+  for (let gi = 0; gi < nc; gi++) {
+    ALL_COURTS[gi].men = menSorted.slice(gi * ppc, (gi + 1) * ppc).map(x => x.name);
+    ALL_COURTS[gi].women = womenSorted.slice(gi * ppc, (gi + 1) * ppc).map(x => x.name);
+  }
+
+  return seed;
+}
+
 async function applySettings() {
+  // ThaiVolley32 enforcement: ppc=4, nc=4
+  _ppc = 4; _nc = 4; fixedPairs = false;
   if (_ppc === ppc && _nc === nc) { showToast('Настройки не изменились'); return; }
   if (!await showConfirm(`Применить: ${_nc} кортов, ${_ppc} игроков?\n\nОчки будут сброшены!`)) return;
-  ppc = _ppc; nc = _nc;
+
+  // Draft engine uses current roster inputs (admin can edit names before applying)
+  readRosterInputsIntoAllCourts();
+  const usedSeed = runThai32DraftEngine();
+  if (usedSeed == null) return;
+
+  ppc = _ppc;
+  nc = _nc;
   scores    = makeBlankScores();
   divScores = makeBlankDivScores();
   divRoster = makeBlankDivRoster();
+  // Reset round selectors
+  for (let ci = 0; ci < nc; ci++) courtRound[ci] = 0;
+  DIV_KEYS.forEach(k => { divRoundState[k] = 0; });
   saveState();
   buildAll();
   switchTab('roster');
-  showToast(`⚙️ ${nc} корт(а) · ${ppc} игроков`);
+  showToast(`⚙️ ${nc} корт(а) · ${ppc} игроков · Draft seed: ${usedSeed}`);
 }
 
 function autoDistribute() {
-  // Collect all names from existing roster inputs if they exist
-  document.querySelectorAll('.rc-inp').forEach(inp => {
-    const ci = +inp.dataset.ci, g = inp.dataset.g, pi = +inp.dataset.pi;
-    if (!isNaN(ci) && ci < 4) ALL_COURTS[ci][g][pi] = inp.value.trim();
-  });
-  // Trim/pad each court to ppc
+  // Draft engine preview/commit uses current input values
+  readRosterInputsIntoAllCourts();
+  const usedSeed = runThai32DraftEngine();
+  if (usedSeed == null) return;
+
+  // Reset scores so results match the drafted roster
+  scores    = makeBlankScores();
+  divScores = makeBlankDivScores();
+  divRoster = makeBlankDivRoster();
+  for (let ci = 0; ci < nc; ci++) courtRound[ci] = 0;
+  DIV_KEYS.forEach(k => { divRoundState[k] = 0; });
+
+  // Re-render court screens with updated roster
   for (let ci = 0; ci < nc; ci++) {
-    ALL_COURTS[ci].men   = ALL_COURTS[ci].men.slice(0,ppc).concat(
-      Array.from({length:Math.max(0,ppc-ALL_COURTS[ci].men.length)}, (_,i)=>`М${ci*ppc+i+1}`)
-    ).slice(0,ppc);
-    ALL_COURTS[ci].women = ALL_COURTS[ci].women.slice(0,ppc).concat(
-      Array.from({length:Math.max(0,ppc-ALL_COURTS[ci].women.length)}, (_,i)=>`Ж${ci*ppc+i+1}`)
-    ).slice(0,ppc);
+    const s = document.getElementById(`screen-${ci}`);
+    if (s) s.innerHTML = renderCourt(ci);
   }
   saveState();
   switchTab('roster');
-  showToast('📋 Распределено');
+  showToast(`📋 Draft распределено · seed: ${usedSeed}`);
 }
 
 // ════════════════════════════════════════════════════════════

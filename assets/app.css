@@ -2662,3 +2662,8 @@ button.player-tap:active{opacity:.6}
   color: var(--muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
   font-family: 'Barlow Condensed',sans-serif; transition: all .2s; }
 .ipt-ps-clear-btn:hover { border-color: #e94560; color: #e94560; }
+
+/* ── IPT Finals stub (недоступный финал) ───────────────────── */
+.ipt-finals-stub { display:flex; flex-direction:column; align-items:center;
+  justify-content:center; min-height:260px; gap:8px; padding:40px 20px;
+  text-align:center; }
