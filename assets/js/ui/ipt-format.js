@@ -217,13 +217,15 @@ function calcIPTPrimaryScore(delta) {
 
 /**
  * Коэффициент K = (60 + Σδ) / (60 − Σδ). Защита от деления на 0.
+ * Константа 60 — базовое значение нормировки для пляжного волейбола (диапазон мячей).
  * @param {number} diffSum  суммарная разница мячей
  * @returns {number}
  */
+const IPT_K_BASE = 60;
 function calcIPTKoef(diffSum) {
-  const denom = 60 - diffSum;
+  const denom = IPT_K_BASE - diffSum;
   if (Math.abs(denom) < 1e-9) return 999.99;
-  return (60 + diffSum) / denom;
+  return (IPT_K_BASE + diffSum) / denom;
 }
 
 /**
@@ -433,9 +435,11 @@ function finishIPTRound(trnId, groupIdx) {
     if (r2.length > 0) {
       trn.ipt.r2Groups = r2;
       saveTournaments(arr);
+      showToast('🏆 Все туры завершены! Посев R2 сформирован.', 'success');
+    } else {
+      showToast('🏆 Все туры завершены!', 'success');
     }
     if (typeof syncDivLock === 'function') syncDivLock();
-    showToast('🏆 Все туры завершены! Посев R2 сформирован.', 'success');
     setTimeout(() => {
       if (typeof switchTab === 'function') switchTab('hard');
     }, 800);
@@ -550,8 +554,8 @@ function generateIPTR2Groups(r1Groups, pointLimit, finishType, gender) {
   const courtSeeds = r1Groups.map(group => {
     const standings = calcIPTGroupStandings(group, pointLimit, finishType);
     if (!isMixed) {
-      // Non-mixed: treat all as same role, take top-4
-      return { pros: standings.slice(0, 4), novs: standings.slice(0, 4) };
+      // Non-mixed: all players are the same role, take top-4 only as Профи
+      return { pros: standings.slice(0, 4), novs: [] };
     }
     const pros = standings.filter(s => !isWoman(s.playerId)); // men = Профи
     const novs = standings.filter(s =>  isWoman(s.playerId)); // women = Новичок
@@ -572,7 +576,8 @@ function generateIPTR2Groups(r1Groups, pointLimit, finishType, gender) {
     _iptShuffle(prosInZone);
     if (isMixed) _iptShuffle(novsInZone);
 
-    // For mixed: interleave so first 4 slots = Профи, next 4 = Новичок (IPT_SCHEDULE_MIXED layout)
+    // For mixed: first 4 slots = Профи, next 4 = Новичок (IPT_SCHEDULE_MIXED layout)
+    // For non-mixed: just the Профи list (up to 8)
     const players = isMixed
       ? [...prosInZone.slice(0, 4), ...novsInZone.slice(0, 4)]
       : prosInZone.slice(0, 8);

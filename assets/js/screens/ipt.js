@@ -292,7 +292,7 @@ function _renderIPTCrossTable(group, ipt, db) {
   const numR   = rounds.length;
 
   const tourHeaders = Array.from({ length: numR }, (_, i) =>
-    `<th class="ipt-xt-rnd">Тур ${i + 1}</th>`
+    `<th class="ipt-xt-rnd">ТУР ${i + 1}</th>`
   ).join('');
 
   const rows = standings.map((s, rank) => {
@@ -334,7 +334,7 @@ function _renderIPTCrossTable(group, ipt, db) {
           <th title="Очки (P) и Коэффициент (K)">P / K</th>
           <th title="Сумма набранных мячей">Мячи</th>
           <th title="Количество побед">В</th>
-          <th title="Место на корте">М</th>
+          <th title="Место на корте">Место</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
