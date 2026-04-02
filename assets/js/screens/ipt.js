@@ -89,15 +89,17 @@ function renderIPTGroup(gi) {
   const db   = loadPlayerDB();
   const curR = group.currentRound || 0;
 
-  // Round nav
+  // Tour nav
   const roundNav = group.rounds.map((r, i) => {
     const isCur  = i === curR;
     const isDone = r.status === 'finished';
-    const isWait = r.status === 'waiting';
+    // Locked until all courts of the previous tour are finished
+    const prevDone = i === 0 || group.rounds[i - 1].courts.every(c => c.status === 'finished');
+    const isLocked = !prevDone && !isDone && !isCur;
     return `<button class="rnd-btn${isCur ? ' active' : ''}${isDone ? ' ipt-rnd-done' : ''}"
-      ${isWait ? 'disabled title="Завершите предыдущий раунд"' : ''}
+      ${isLocked ? 'disabled title="Завершите предыдущий тур"' : ''}
       onclick="setIPTRound(${gi},${i})"
-    ><span class="rn-num">${i + 1}</span><span class="rn-lbl">РАУНД</span></button>`;
+    ><span class="rn-num">${i + 1}</span><span class="rn-lbl">ТУР</span></button>`;
   }).join('');
 
   // Courts
@@ -174,16 +176,15 @@ function renderIPTFinals(trn, finalsGroupIdx) {
     const medal   = MEDALS[finalsGroupIdx === 0 ? i : i + half] || `${finalsGroupIdx === 0 ? i + 1 : i + half + 1}`;
     const diffStr = s.diff >= 0 ? `+${s.diff}` : `${s.diff}`;
     const dCls    = s.diff > 0 ? 'pos' : s.diff < 0 ? 'neg' : '';
-    const wrPct   = s.matches ? Math.round((s.wins / s.matches) * 100) : 0;
+    const kFmt    = s.K >= 100 ? s.K.toFixed(0) : s.K.toFixed(2);
     return `<tr class="${i < 3 && finalsGroupIdx === 0 ? 'ipt-top3' : ''}">
       <td class="ipt-st-rank">${medal}</td>
       <td class="ipt-st-name">${esc(name)}</td>
       <td class="ipt-st-group">${esc(s.groupName)}</td>
       <td class="ipt-st-wins">${s.wins}</td>
-      <td class="ipt-st-matches">${s.matches}</td>
-      <td class="ipt-st-wr">${wrPct}%</td>
       <td class="ipt-st-diff ${dCls}">${diffStr}</td>
-      <td class="ipt-st-pts">${s.pts}</td>
+      <td class="ipt-st-pk"><span class="ipt-pk-pts">${s.pts}</span><span class="ipt-pk-k">${kFmt}</span></td>
+      <td class="ipt-st-diff">${s.balls}</td>
     </tr>`;
   }).join('');
 
@@ -194,7 +195,7 @@ function renderIPTFinals(trn, finalsGroupIdx) {
     </div>
     <div class="ipt-standings">
       <table class="ipt-standings-tbl">
-        <thead><tr><th>#</th><th>Игрок</th><th>Гр.</th><th>В</th><th>M</th><th>WR</th><th>±</th><th>Оч</th></tr></thead>
+        <thead><tr><th>#</th><th>Игрок</th><th>Гр.</th><th>В</th><th>±</th><th>P / K</th><th>Мячи</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -210,6 +211,8 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
   const rn       = round.num;
   const finished = court.status === 'finished';
   const waiting  = court.status === 'waiting';
+  // Round is read-only if the round itself is marked finished (completed tour)
+  const roundDone = round.status === 'finished';
   const s1 = court.score1, s2 = court.score2;
   const winner   = finished ? (s1 > s2 ? 1 : s2 > s1 ? 2 : 0) : 0;
 
@@ -220,15 +223,15 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
   const color  = colors[cn] || '#9B8EC4';
   const label  = ['🏅 КОРТ A', '🔷 КОРТ B', '🟢 КОРТ C', '🔶 КОРТ D'][cn] || `КОРТ ${cn + 1}`;
 
-  const dis1m = s1 <= 0 || finished || waiting ? 'disabled' : '';
-  const dis1p = finished || waiting ? 'disabled' : '';
-  const dis2m = s2 <= 0 || finished || waiting ? 'disabled' : '';
-  const dis2p = finished || waiting ? 'disabled' : '';
+  const dis1m = s1 <= 0 || finished || waiting || roundDone ? 'disabled' : '';
+  const dis1p = finished || waiting || roundDone ? 'disabled' : '';
+  const dis2m = s2 <= 0 || finished || waiting || roundDone ? 'disabled' : '';
+  const dis2p = finished || waiting || roundDone ? 'disabled' : '';
 
   const tid = escAttr(trnId);
   const teamHtml = (names, score, side, disM, disP, winnerSide) => {
-    // Двойной тап доступен всегда (кроме waiting и завершённого турнира)
-    const editable = !waiting;
+    // Double-tap for manual entry — disabled on finished rounds and waiting courts
+    const editable = !waiting && !roundDone;
     const scoreEl  = editable
       ? `<div class="ipt-score${winnerSide ? ' win' : winner && !winnerSide ? ' lose' : ''} ipt-score-tap"
             title="Двойной тап — ввод с клавиатуры"
@@ -252,6 +255,7 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
       <span class="ipt-court-lbl">${label}</span>
       ${finished ? '<span class="ipt-court-badge">✅ ЗАВЕРШЕНО</span>' : ''}
       ${waiting  ? '<span class="ipt-court-badge wait">⏳ ОЖИДАНИЕ</span>' : ''}
+      ${roundDone && !finished ? '<span class="ipt-court-badge">🔒 ТУР ЗАВЕРШЁН</span>' : ''}
     </div>
     <div class="ipt-matchup">
       ${teamHtml(n1, s1, 1, dis1m, dis1p, winner === 1)}
@@ -261,57 +265,61 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
   </div>`;
 }
 
-// ── Cross-table standings (Игрок × Раунды + В/±/Оч) ──────────
+// ── Cross-table standings: Игрок × Туры (Δ) + Итого(Δ) P K Мячи Победы Место ──
 function _renderIPTCrossTable(group, ipt, db) {
   if (!db) db = loadPlayerDB();
   const rounds   = group.rounds || [];
   const players  = group.players || [];
   if (!players.length) return '';
 
-  // For each player, get their score in each round
-  const getScore = (playerId, rIdx) => {
+  // Get Δ for a player in a specific round (null=not played, 'БЕН'=benched)
+  const getDelta = (playerId, rIdx) => {
     const r = rounds[rIdx];
     if (!r) return null;
     for (const c of r.courts) {
-      if ((c.team1 || []).includes(playerId)) return c.score1 > 0 || c.score2 > 0 ? c.score1 : null;
-      if ((c.team2 || []).includes(playerId)) return c.score1 > 0 || c.score2 > 0 ? c.score2 : null;
+      const inT1 = (c.team1 || []).includes(playerId);
+      const inT2 = (c.team2 || []).includes(playerId);
+      if (!inT1 && !inT2) continue;
+      // Only show if at least one score entered
+      if (c.score1 === 0 && c.score2 === 0) return null;
+      return inT1 ? c.score1 - c.score2 : c.score2 - c.score1;
     }
-    return 'БЕН'; // benched (not active this round)
+    return 'БЕН'; // benched
   };
 
   const standings = calcIPTGroupStandings(group, ipt.pointLimit, ipt.finishType);
-  const statsMap  = {};
-  standings.forEach(s => { statsMap[s.playerId] = s; });
-
   const MEDALS = ['🥇', '🥈', '🥉'];
   const numR   = rounds.length;
 
-  const roundHeaders = Array.from({ length: numR }, (_, i) =>
-    `<th class="ipt-xt-rnd">Р${i + 1}</th>`
+  const tourHeaders = Array.from({ length: numR }, (_, i) =>
+    `<th class="ipt-xt-rnd">Тур ${i + 1}</th>`
   ).join('');
 
   const rows = standings.map((s, rank) => {
-    const name    = db.find(p => p.id === s.playerId)?.name || '?';
-    const medal   = MEDALS[rank] || `<span class="ipt-rank-num">${rank + 1}</span>`;
-    const diffStr = s.diff >= 0 ? `+${s.diff}` : `${s.diff}`;
-    const dCls    = s.diff > 0 ? 'pos' : s.diff < 0 ? 'neg' : '';
-    const wrPct   = s.matches ? Math.round((s.wins / s.matches) * 100) : 0;
+    const name      = db.find(p => p.id === s.playerId)?.name || '?';
+    const medal     = MEDALS[rank] || `<span class="ipt-rank-num">${rank + 1}</span>`;
+    const totalDiff = s.diff >= 0 ? `+${s.diff}` : `${s.diff}`;
+    const dCls      = s.diff > 0 ? 'pos' : s.diff < 0 ? 'neg' : '';
+    const kFmt      = s.K >= 100 ? s.K.toFixed(0) : s.K.toFixed(2);
 
-    const roundCells = Array.from({ length: numR }, (_, i) => {
-      const sc = getScore(s.playerId, i);
-      if (sc === null)    return `<td class="ipt-xt-cell empty">—</td>`;
-      if (sc === 'БЕН')  return `<td class="ipt-xt-cell bench">—</td>`;
-      return `<td class="ipt-xt-cell">${sc}</td>`;
+    const tourCells = Array.from({ length: numR }, (_, i) => {
+      const d = getDelta(s.playerId, i);
+      if (d === null)    return `<td class="ipt-xt-cell empty">—</td>`;
+      if (d === 'БЕН')   return `<td class="ipt-xt-cell bench">—</td>`;
+      const sign = d > 0 ? '+' : '';
+      const cls  = d > 0 ? 'pos' : d < 0 ? 'neg' : '';
+      return `<td class="ipt-xt-cell ipt-xt-delta ${cls}">${sign}${d}</td>`;
     }).join('');
 
     return `<tr class="${rank < 3 ? 'ipt-top3' : ''}">
       <td class="ipt-st-rank">${medal}</td>
       <td class="ipt-st-name">${esc(name)}</td>
-      ${roundCells}
-      <td class="ipt-st-wins">${s.wins}</td>
-      <td class="ipt-st-wr">${wrPct}%</td>
-      <td class="ipt-st-diff ${dCls}">${diffStr}</td>
-      <td class="ipt-st-pts">${s.pts}</td>
+      ${tourCells}
+      <td class="ipt-xt-cell ipt-st-diff ${dCls}">${totalDiff}</td>
+      <td class="ipt-xt-cell ipt-st-pk"><span class="ipt-pk-pts">${s.pts}</span><span class="ipt-pk-k">${kFmt}</span></td>
+      <td class="ipt-xt-cell">${s.balls}</td>
+      <td class="ipt-xt-cell">${s.wins}</td>
+      <td class="ipt-xt-cell ipt-st-place">${rank + 1}</td>
     </tr>`;
   }).join('');
 
@@ -320,9 +328,13 @@ function _renderIPTCrossTable(group, ipt, db) {
     <div class="ipt-xt-scroll">
       <table class="ipt-standings-tbl ipt-xt-tbl">
         <thead><tr>
-          <th>#</th><th>Игрок</th>
-          ${roundHeaders}
-          <th>В</th><th>WR</th><th>±</th><th>Оч</th>
+          <th>#</th><th class="ipt-xt-name-hdr">Игрок</th>
+          ${tourHeaders}
+          <th title="Суммарная разница мячей">Итого(Δ)</th>
+          <th title="Очки (P) и Коэффициент (K)">P / K</th>
+          <th title="Сумма набранных мячей">Мячи</th>
+          <th title="Количество побед">В</th>
+          <th title="Место на корте">М</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
