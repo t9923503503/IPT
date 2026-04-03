@@ -206,7 +206,7 @@ function updateDivisions() {
       divRoster[key] = { men:newMen, women:newWomen };
       const Nd = Math.max(newMen.length, 1);
       // Не сбрасываем если в финале уже есть введённые очки
-      const hasFinalsData = divScores[key]?.some(row => row?.some(v => v !== null && v > 0));
+      const hasFinalsData = divScores[key]?.some(row => row?.some(v => v !== null && v !== undefined));
       if (!hasFinalsData) {
         divScores[key] = Array.from({length:Nd}, ()=>Array(Nd).fill(null));
       }
