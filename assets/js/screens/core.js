@@ -803,10 +803,9 @@ function syncDivLock() {
   const _iptTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
   const _iptTrn   = _iptTrnId ? getTournaments().find(t => t.id === _iptTrnId) : null;
   const _iptGroups = _iptTrn?.ipt?.groups;
-  const _rosterIsIPT = typeof _rosterFmt !== 'undefined' && _rosterFmt === 'ipt';
 
-  if (_iptGroups || _rosterIsIPT) {
-    const allDone = _iptGroups ? _iptGroups.every(g => g.status === 'finished') : false;
+  if (_iptGroups) {
+    const allDone = _iptGroups.every(g => g.status === 'finished');
     document.querySelectorAll('.pill-div-btn').forEach(p => {
       p.classList.toggle('pill-div-locked', !allDone);
       p.title = allDone ? '' : 'Завершите все группы чтобы открыть финалы';
