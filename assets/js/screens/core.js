@@ -785,6 +785,17 @@ function toggleDropdown(id, btn) {
 // ════════════════════════════════════════════════════════════
 // 5. NAVIGATION BUILD — pill buttons
 // ════════════════════════════════════════════════════════════
+function getActiveCourtCount() {
+  const _iptNavTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const _iptNavTrn   = _iptNavTrnId ? getTournaments().find(t => t.id === _iptNavTrnId) : null;
+  const _iptNavGroups = _iptNavTrn?.ipt?.groups || null;
+  const _rosterIsIPT  = typeof _rosterFmt !== 'undefined' && _rosterFmt === 'ipt';
+  const _iptCourtsCnt = typeof _iptCourts  !== 'undefined' ? _iptCourts : 1;
+  return _iptNavGroups
+    ? _iptNavGroups.length
+    : (_rosterIsIPT ? _iptCourtsCnt : nc);
+}
+
 function hasRound5Score() {
   const lastRi = ppc - 1;
   for (let ci = 0; ci < nc; ci++) {
@@ -1057,11 +1068,9 @@ async function _switchTabInner(id) {
   const _iptTrn   = _iptTrnId ? getTournaments().find(t => t.id === _iptTrnId) : null;
   if (_iptTrn?.ipt?.groups) {
     if (typeof id === 'number') {
-      if (_iptTrn.ipt.groups[id]) {
-        screen.innerHTML = renderIPTGroup(id);
-      } else {
-        screen.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">⚠️ Корт не активен в этом турнире</div>';
-      }
+      screen.innerHTML = _iptTrn.ipt.groups[id]
+        ? renderIPTGroup(id)
+        : '<div class="ipt-wrap"><div class="ipt-finals-stub"><div style="font-size:2rem">⚠️</div><div style="font-size:1.1rem;font-weight:700;margin:.5rem 0">Корт не активен</div><div style="color:var(--muted);font-size:.85rem">Этот корт не используется в текущем турнире</div></div></div>';
       screen.classList.add('active');
       syncNavActive();
       window.scrollTo({ top: 0, behavior: 'auto' });
