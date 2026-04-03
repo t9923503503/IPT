@@ -6,11 +6,10 @@ import { test, expect } from '@playwright/test';
 
 /** Build a 4×4×4 scores array with given last-round value */
 function buildScores({ lastRoundValue = null }: { lastRoundValue?: number | null } = {}) {
+  // scores[ci][mi][ri]: court × pair × round
   return Array.from({ length: 4 }, () =>
-    Array.from({ length: 4 }, (_, ri) =>
-      ri < 3
-        ? [10, 8, 5, 7] // rounds 0-2 fully filled
-        : [lastRoundValue, lastRoundValue, lastRoundValue, lastRoundValue] // round 3
+    Array.from({ length: 4 }, () =>
+      [10, 8, 5, lastRoundValue] // rounds 0-2 filled, round 3 controlled by lastRoundValue
     )
   );
 }
