@@ -203,6 +203,32 @@ function _migrateIPTLegacy(trn) {
 }
 
 /**
+ * Primary score P for one match result.
+ * @param {number} delta  own_score − opp_score
+ * @returns {number} 0 | 10 | 11 | 12 | 13
+ */
+function calcIPTPrimaryScore(delta) {
+  if (delta <= 0)  return 0;   // поражение
+  if (delta === 1) return 10;
+  if (delta === 2) return 11;
+  if (delta <= 4)  return 12;
+  return 13;                   // delta >= 5
+}
+
+/**
+ * Коэффициент K = (60 + Σδ) / (60 − Σδ). Защита от деления на 0.
+ * Константа 60 — базовое значение нормировки для пляжного волейбола (диапазон мячей).
+ * @param {number} diffSum  суммарная разница мячей
+ * @returns {number}
+ */
+const IPT_K_BASE = 60;
+function calcIPTKoef(diffSum) {
+  const denom = IPT_K_BASE - diffSum;
+  if (Math.abs(denom) < 1e-9) return 999.99;
+  return (IPT_K_BASE + diffSum) / denom;
+}
+
+/**
  * Check if a match is over given point limit and finish type.
  */
 function iptMatchFinished(court, pointLimit, finishType) {
@@ -215,37 +241,73 @@ function iptMatchFinished(court, pointLimit, finishType) {
 }
 
 /**
- * Compute standings for a single group.
+ * Compute standings for a single group using the hybrid P-score system.
+ * Sorting: P↓ → K↓ → balls↓
+ *
  * @param {object} group — { rounds, players }
  * @param {number} pointLimit
  * @param {string} finishType
- * @returns {Array<{playerId, wins, diff, pts, matches, wr}>} sorted
+ * @returns {Array<{playerId, wins, diff, pts, balls, K, matches, tourDeltas, wr}>} sorted
  */
 function calcIPTGroupStandings(group, pointLimit, finishType) {
-  const stats = {};
-  const ensure = id => { if (!stats[id]) stats[id] = { playerId: id, wins: 0, diff: 0, pts: 0, matches: 0 }; };
+  const rounds  = group.rounds || [];
+  const numR    = rounds.length;
+  const stats   = {};
 
-  (group.rounds || []).forEach(round => {
+  const ensure = id => {
+    if (!stats[id]) stats[id] = {
+      playerId: id,
+      wins: 0,
+      diff: 0,
+      pts: 0,       // P — primary score (10/11/12/13 per win)
+      balls: 0,     // sum of own scored balls
+      matches: 0,
+      tourDeltas: new Array(numR).fill(null), // Δ per tour
+    };
+  };
+
+  rounds.forEach((round, rIdx) => {
     (round.courts || []).forEach(court => {
       const { team1, team2, score1: s1, score2: s2 } = court;
       team1.forEach(ensure); team2.forEach(ensure);
       if (s1 === 0 && s2 === 0) return;
-      const done = iptMatchFinished(court, pointLimit, finishType);
-      team1.forEach(id => { stats[id].pts += s1; stats[id].diff += s1 - s2;
-        if (done && s1 > s2) stats[id].wins++;
-        if (done) stats[id].matches++; });
-      team2.forEach(id => { stats[id].pts += s2; stats[id].diff += s2 - s1;
-        if (done && s2 > s1) stats[id].wins++;
-        if (done) stats[id].matches++; });
+      const done  = iptMatchFinished(court, pointLimit, finishType);
+      const d1    = s1 - s2;
+      const d2    = s2 - s1;
+      team1.forEach(id => {
+        stats[id].balls += s1;
+        stats[id].diff  += d1;
+        stats[id].tourDeltas[rIdx] = d1;
+        if (done) {
+          stats[id].pts += calcIPTPrimaryScore(d1);
+          if (d1 > 0) stats[id].wins++;
+          stats[id].matches++;
+        }
+      });
+      team2.forEach(id => {
+        stats[id].balls += s2;
+        stats[id].diff  += d2;
+        stats[id].tourDeltas[rIdx] = d2;
+        if (done) {
+          stats[id].pts += calcIPTPrimaryScore(d2);
+          if (d2 > 0) stats[id].wins++;
+          stats[id].matches++;
+        }
+      });
     });
   });
 
   return Object.values(stats)
-    .map(s => ({ ...s, wr: s.matches ? s.wins / s.matches : 0 }))
-    .sort((a, b) =>
-      b.wins !== a.wins ? b.wins - a.wins :
-      b.diff !== a.diff ? b.diff - a.diff :
-      b.pts  - a.pts);
+    .map(s => ({
+      ...s,
+      K:  calcIPTKoef(s.diff),
+      wr: s.matches ? s.wins / s.matches : 0,
+    }))
+    .sort((a, b) => {
+      if (b.pts   !== a.pts)  return b.pts  - a.pts;
+      if (b.K     !== a.K)    return b.K    - a.K;
+      return b.balls - a.balls;
+    });
 }
 
 /**
@@ -352,7 +414,7 @@ function finishIPTRound(trnId, groupIdx) {
     group.currentRound = rn + 1;
     group.rounds[rn + 1].status = 'active';
     group.rounds[rn + 1].courts.forEach(c => c.status = 'active');
-    showToast(`▶ ${group.name} — Раунд ${rn + 2} начат`, 'success');
+    showToast(`▶ ${group.name} — Тур ${rn + 2} начат`, 'success');
   } else {
     group.status = 'finished';
     showToast(`🏁 Группа ${group.name} завершена!`, 'success');
@@ -360,11 +422,24 @@ function finishIPTRound(trnId, groupIdx) {
 
   saveTournaments(arr);
 
-  // Если все группы завершены — разблокировать финалы и перейти на HD
+  // Если все группы завершены — посев R2 + разблокировать финалы и перейти на HD
   const allGroupsDone = trn.ipt.groups.every(g => g.status === 'finished');
   if (allGroupsDone) {
+    // Автоматический посев R2
+    const r2 = generateIPTR2Groups(
+      trn.ipt.groups,
+      trn.ipt.pointLimit,
+      trn.ipt.finishType,
+      trn.ipt.gender || trn.gender || 'mixed'
+    );
+    if (r2.length > 0) {
+      trn.ipt.r2Groups = r2;
+      saveTournaments(arr);
+      showToast('🏆 Все туры завершены! Посев R2 сформирован.', 'success');
+    } else {
+      showToast('🏆 Все туры завершены!', 'success');
+    }
     if (typeof syncDivLock === 'function') syncDivLock();
-    showToast('🏆 Все группы завершены! Открываем финал HD…', 'success');
     setTimeout(() => {
       if (typeof switchTab === 'function') switchTab('hard');
     }, 800);
@@ -400,7 +475,7 @@ async function finishIPT(trnId) {
         group:     group.name,
         playerIds: [s.playerId],
         points:    calculateRanking(i + 1),
-        iptStats:  { wins: s.wins, diff: s.diff, pts: s.pts, matches: s.matches, wr: s.wr },
+        iptStats:  { wins: s.wins, diff: s.diff, pts: s.pts, balls: s.balls, K: s.K, matches: s.matches, wr: s.wr },
       });
     });
   });
@@ -429,4 +504,92 @@ function _iptRerender() {
   }
   // Обновить замок финальных кнопок
   if (typeof syncDivLock === 'function') syncDivLock();
+}
+
+// ════════════════════════════════════════════════════════════════
+// R2 SEEDING
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Fisher-Yates shuffle (in-place).
+ */
+function _iptShuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Generate R2 groups from completed R1 groups using the seeding algorithm:
+ *   - Rank all 8 players of each court by P↓ → K↓ → balls↓ (unified ranking)
+ *   - Separate by role (Профи = men, Новичок = women) preserving unified order
+ *   - 1st Профи + 1st Новичок from each of 4 courts → HARD (4+4=8)
+ *   - 2nd → ADVANCE, 3rd → MEDIUM, 4th → LIGHT
+ *   - Random draw within each zone (shuffle before generating rounds)
+ *
+ * @param {Array}  r1Groups  — completed ipt.groups array (4 courts)
+ * @param {number} pointLimit
+ * @param {string} finishType
+ * @param {string} gender    — 'mixed'|'male'|'female'
+ * @returns {Array} new groups array for ipt.r2Groups
+ */
+function generateIPTR2Groups(r1Groups, pointLimit, finishType, gender) {
+  const db      = typeof loadPlayerDB === 'function' ? loadPlayerDB() : [];
+  const isMixed = gender === 'mixed';
+
+  // Zone names for R2
+  const ZONE_NAMES = ['ХАРД', 'АДВАНС', 'МЕДИУМ', 'ЛАЙТ'];
+
+  // Helpers to classify player by gender from DB
+  const isWoman = id => {
+    const p   = db.find(d => d.id === id);
+    const raw = String(p?.gender || '').toLowerCase();
+    return raw === 'w' || raw === 'f' || raw === 'female';
+  };
+
+  // For each R1 court, compute standings and extract top-4 Профи + top-4 Новичок
+  // (or top-8 if not mixed)
+  const courtSeeds = r1Groups.map(group => {
+    const standings = calcIPTGroupStandings(group, pointLimit, finishType);
+    if (!isMixed) {
+      // Non-mixed: all players are the same role, take top-4 only as Профи
+      return { pros: standings.slice(0, 4), novs: [] };
+    }
+    const pros = standings.filter(s => !isWoman(s.playerId)); // men = Профи
+    const novs = standings.filter(s =>  isWoman(s.playerId)); // women = Новичок
+    return { pros, novs };
+  });
+
+  // Build 4 zones: each gets rank-i Профи from every court + rank-i Новичок from every court
+  const zones = ZONE_NAMES.map((name, rank) => {
+    const prosInZone = courtSeeds
+      .map(cs => cs.pros[rank])
+      .filter(Boolean)
+      .map(s => s.playerId);
+    const novsInZone = isMixed
+      ? courtSeeds.map(cs => cs.novs[rank]).filter(Boolean).map(s => s.playerId)
+      : [];
+
+    // Shuffle within Профи and Новичок separately (random draw within zone)
+    _iptShuffle(prosInZone);
+    if (isMixed) _iptShuffle(novsInZone);
+
+    // For mixed: first 4 slots = Профи, next 4 = Новичок (IPT_SCHEDULE_MIXED layout)
+    // For non-mixed: just the Профи list (up to 8)
+    const players = isMixed
+      ? [...prosInZone.slice(0, 4), ...novsInZone.slice(0, 4)]
+      : prosInZone.slice(0, 8);
+
+    if (players.length < 4) return null;
+
+    const rounds = players.length === 8
+      ? generateIPTRounds(players, isMixed)
+      : generateDynamicIPTRounds(players);
+
+    return { name, players, currentRound: 0, status: 'active', rounds };
+  }).filter(Boolean);
+
+  return zones;
 }

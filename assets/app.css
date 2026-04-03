@@ -2597,11 +2597,28 @@ button.player-tap:active{opacity:.6}
 .ipt-xt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .ipt-xt-tbl { min-width: 100%; }
 .ipt-xt-rnd { color: var(--muted); font-size: 11px; font-weight: 600;
-  letter-spacing: .5px; min-width: 36px; }
+  letter-spacing: .5px; min-width: 44px; }
+.ipt-xt-name-hdr { text-align: left; }
 .ipt-xt-cell { text-align: center; font-size: 14px; font-weight: 600;
   color: var(--text); min-width: 36px; }
 .ipt-xt-cell.empty { color: var(--muted); opacity: .4; }
 .ipt-xt-cell.bench { color: var(--muted); font-size: 11px; opacity: .5; }
+/* Tour Δ cells */
+.ipt-xt-delta { font-weight: 700; }
+.ipt-xt-delta.pos { color: #22c55e; }
+.ipt-xt-delta.neg { color: var(--minus); }
+/* P + K combined cell */
+.ipt-st-pk { text-align: center; white-space: nowrap; }
+.ipt-pk-pts { font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+  color: var(--gold); line-height: 1; }
+.ipt-pk-k { display: block; font-size: 10px; color: var(--muted);
+  font-weight: 600; line-height: 1; margin-top: 1px; }
+/* Place column */
+.ipt-st-place { font-family: 'Bebas Neue', sans-serif; font-size: 16px;
+  color: var(--muted); }
+/* Finished tour nav button */
+.rnd-btn.ipt-rnd-done { border-color: #22c55e; color: #22c55e;
+  background: rgba(34,197,94,.06); }
 
 /* ── IPT Finals (standings with group column) ────────────── */
 .ipt-st-group { font-size: 11px; color: var(--muted); text-align: center;
