@@ -178,7 +178,7 @@ test.describe('Турнир 4 корта — полный цикл (e2e)', () =>
     const scoresPartial = SCORES_R1.map(court =>
       court.map((player, mi) =>
         player.map((v, ri) => {
-          // Обнуляем ячейки rt=3 для некоторых игроков
+          // Обнуляем ячейки ri=3 для некоторых игроков
           if (ri === 3 && mi >= 2) return null;
           return v;
         })
