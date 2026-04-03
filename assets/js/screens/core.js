@@ -788,9 +788,12 @@ function toggleDropdown(id, btn) {
 function hasRound5Score() {
   const lastRi = ppc - 1;
   for (let ci = 0; ci < nc; ci++) {
-    for (let mi = 0; mi < ppc; mi++) {
-      if ((scores[ci]?.[mi]?.[lastRi] ?? null) > 0) return true;
-    }
+    // Считаем корт завершённым если ВСЕ ppc ячеек последнего тура заполнены (включая 0)
+    const allFilled = Array.from({length: ppc}, (_, mi) => {
+      const v = scores[ci]?.[mi]?.[lastRi];
+      return v !== null && v !== undefined;
+    }).every(Boolean);
+    if (allFilled) return true;
   }
   return false;
 }
@@ -813,7 +816,7 @@ function syncDivLock() {
 
   // Стандартный режим
   const unlocked = hasRound5Score();
-  const tip = `Добавьте очки в раунде ${ppc} на кортах 1–${nc}, чтобы открыть`;
+  const tip = `Заполните все пары в раунде ${ppc} хотя бы на одном корте, чтобы открыть`;
   document.querySelectorAll('.pill-div-btn').forEach(p => {
     p.classList.toggle('pill-div-locked', !unlocked);
     p.title = unlocked ? '' : tip;
@@ -1103,7 +1106,7 @@ async function _switchTabInner(id) {
   if (id === 'rating') screen.innerHTML = renderRating();
   if (id === 'hard' || id === 'advance' || id === 'medium' || id === 'lite') {
     if (!hasRound5Score()) {
-      showToast(`🔒 Добавьте очки в раунде ${ppc} на кортах 1–${nc}`);
+      showToast(`🔒 Заполните все пары в раунде ${ppc} хотя бы на одном корте`);
       activeTabId = prevTabId;
       syncNavActive();
       return;
