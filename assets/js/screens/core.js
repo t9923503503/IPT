@@ -787,10 +787,10 @@ function toggleDropdown(id, btn) {
 // ════════════════════════════════════════════════════════════
 function hasRound5Score() {
   const lastRi = ppc - 1;
+  const activeMis = new Set(
+    Array.from({length: ppc}, (_, i) => fixedPairs ? i : (i * 2 + lastRi) % ppc)
+  );
   for (let ci = 0; ci < nc; ci++) {
-    const activeMis = new Set(
-      Array.from({length: ppc}, (_, i) => fixedPairs ? i : (i * 2 + lastRi) % ppc)
-    );
     let allFilled = true;
     for (const mi of activeMis) {
       const v = scores[ci]?.[mi]?.[lastRi];
