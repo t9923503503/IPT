@@ -788,9 +788,12 @@ function toggleDropdown(id, btn) {
 function hasRound5Score() {
   const lastRi = ppc - 1;
   for (let ci = 0; ci < nc; ci++) {
+    let allFilled = true;
     for (let mi = 0; mi < ppc; mi++) {
-      if ((scores[ci]?.[mi]?.[lastRi] ?? null) > 0) return true;
+      const v = scores[ci]?.[mi]?.[lastRi];
+      if (v === null || v === undefined) { allFilled = false; break; }
     }
+    if (allFilled) return true;
   }
   return false;
 }
@@ -813,7 +816,7 @@ function syncDivLock() {
 
   // Стандартный режим
   const unlocked = hasRound5Score();
-  const tip = `Добавьте очки в раунде ${ppc} на кортах 1–${nc}, чтобы открыть`;
+  const tip = `Заполните все пары в раунде ${ppc} хотя бы на одном корте, чтобы открыть`;
   document.querySelectorAll('.pill-div-btn').forEach(p => {
     p.classList.toggle('pill-div-locked', !unlocked);
     p.title = unlocked ? '' : tip;
@@ -961,11 +964,21 @@ function buildScreens() {
   const sc = document.getElementById('screens');
   sc.innerHTML = '';
 
-  // Corт screens (0..3, always created, hidden for ci >= nc)
+  // Determine how many courts are actually active (same logic as buildNav)
+  const _iptTrnId2    = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const _iptTrn2      = _iptTrnId2 ? getTournaments().find(t => t.id === _iptTrnId2) : null;
+  const _iptNavGrps2  = _iptTrn2?.ipt?.groups;
+  const _rosterIsIPT2 = typeof _rosterFmt !== 'undefined' && _rosterFmt === 'ipt';
+  const _iptCrtsCnt2  = typeof _iptCourts  !== 'undefined' ? _iptCourts : 1;
+  const courtCount = _iptNavGrps2
+    ? _iptNavGrps2.length
+    : (_rosterIsIPT2 ? _iptCrtsCnt2 : nc);
+
+  // Court screens — only render content for active courts
   for (let ci = 0; ci < 4; ci++) {
     const s = document.createElement('div');
     s.className = 'screen'; s.id = `screen-${ci}`;
-    s.innerHTML = ci < nc ? renderCourt(ci) : '';
+    s.innerHTML = ci < courtCount ? renderCourt(ci) : '';
     sc.appendChild(s);
   }
 
@@ -1043,8 +1056,12 @@ async function _switchTabInner(id) {
   const _iptTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
   const _iptTrn   = _iptTrnId ? getTournaments().find(t => t.id === _iptTrnId) : null;
   if (_iptTrn?.ipt?.groups) {
-    if (typeof id === 'number' && _iptTrn.ipt.groups[id]) {
-      screen.innerHTML = renderIPTGroup(id);
+    if (typeof id === 'number') {
+      if (_iptTrn.ipt.groups[id]) {
+        screen.innerHTML = renderIPTGroup(id);
+      } else {
+        screen.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">⚠️ Корт не активен в этом турнире</div>';
+      }
       screen.classList.add('active');
       syncNavActive();
       window.scrollTo({ top: 0, behavior: 'auto' });
@@ -1103,7 +1120,7 @@ async function _switchTabInner(id) {
   if (id === 'rating') screen.innerHTML = renderRating();
   if (id === 'hard' || id === 'advance' || id === 'medium' || id === 'lite') {
     if (!hasRound5Score()) {
-      showToast(`🔒 Добавьте очки в раунде ${ppc} на кортах 1–${nc}`);
+      showToast(`🔒 Заполните все пары в раунде ${ppc} хотя бы на одном корте`);
       activeTabId = prevTabId;
       syncNavActive();
       return;
