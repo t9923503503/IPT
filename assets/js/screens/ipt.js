@@ -49,7 +49,10 @@ function openIPT(trnId) {
   }
 
   // Regenerate groups if missing or count doesn't match participants
-  const expectedGroups = Math.max(1, Math.floor(parts.length / 8));
+  const configuredCourts = trn.ipt?.courts ? parseInt(trn.ipt.courts, 10) : null;
+  const expectedGroups = configuredCourts && Number.isFinite(configuredCourts)
+    ? configuredCourts
+    : Math.max(1, Math.floor(parts.length / 8));
   const needsGenerate  = !trn.ipt?.groups || trn.ipt.groups.length !== expectedGroups;
 
   if (needsGenerate) {
@@ -250,11 +253,10 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
     </div>`;
   };
 
-  return `<div class="ipt-court${finished ? ' ipt-court-done' : waiting ? ' ipt-court-wait' : ''}" style="--ipt-c:${color}">
+  return `<div class="ipt-court${finished ? ' ipt-court-done' : ''}" style="--ipt-c:${color}">
     <div class="ipt-court-hdr">
       <span class="ipt-court-lbl">${label}</span>
       ${finished ? '<span class="ipt-court-badge">✅ ЗАВЕРШЕНО</span>' : ''}
-      ${waiting  ? '<span class="ipt-court-badge wait">⏳ ОЖИДАНИЕ</span>' : ''}
       ${roundDone && !finished ? '<span class="ipt-court-badge">🔒 ТУР ЗАВЕРШЁН</span>' : ''}
     </div>
     <div class="ipt-matchup">

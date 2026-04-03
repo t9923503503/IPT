@@ -172,12 +172,13 @@ function generateIPTGroups(participants, gender) {
         if (raw === 'w' || raw === 'f' || raw === 'female') women.push(pid);
         else men.push(pid);
       });
-      // 4М + 4Ж — идеальный mixed
-      players = men.slice(0, 4).concat(women.slice(0, 4));
-      // Если не хватает — добираем
-      var rest = participants.slice(start, start + 8)
-        .filter(function(id) { return players.indexOf(id) === -1; });
-      while (players.length < 8 && rest.length > 0) players.push(rest.shift());
+      // 4М + 4Ж — идеальный mixed; если только один пол — оставляем как есть
+      if (men.length > 0 && women.length > 0) {
+        var mixed = men.slice(0, 4).concat(women.slice(0, 4));
+        var rest = players.filter(function(id) { return mixed.indexOf(id) === -1; });
+        players = mixed.concat(rest).slice(0, 8);
+      }
+      // иначе players остаётся как есть (все 8 одного пола)
     }
 
     const rounds  = players.length === 8
