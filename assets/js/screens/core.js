@@ -788,9 +788,11 @@ function toggleDropdown(id, btn) {
 function hasRound5Score() {
   const lastRi = ppc - 1;
   for (let ci = 0; ci < nc; ci++) {
-    for (let mi = 0; mi < ppc; mi++) {
-      if ((scores[ci]?.[mi]?.[lastRi] ?? null) > 0) return true;
-    }
+    const allFilled = Array.from({length: ppc}, (_, mi) => {
+      const v = scores[ci]?.[mi]?.[lastRi];
+      return v !== null && v !== undefined;
+    }).every(Boolean);
+    if (allFilled) return true;
   }
   return false;
 }
