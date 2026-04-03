@@ -46,3 +46,54 @@ describe('buildIPTMatchHistory', () => {
   });
 });
 
+describe('generateIPTGroups', () => {
+  beforeAll(() => {
+    ensureLoaded();
+    // stub loadPlayerDB to return 32 male players
+    globalThis.loadPlayerDB = () =>
+      Array.from({ length: 32 }, (_, i) => ({ id: `p${i}`, name: `Player${i}`, gender: 'm' }));
+  });
+
+  test('32 мужчины в mixed режиме → 4 группы по 8 игроков', () => {
+    const ids = Array.from({ length: 32 }, (_, i) => `p${i}`);
+    const groups = globalThis.generateIPTGroups(ids, 'mixed');
+    expect(groups.length).toBe(4);
+    groups.forEach(g => {
+      expect(g.players.length).toBe(8);
+    });
+  });
+
+  test('32 мужчины в mixed режиме → каждая группа использует generateIPTRounds (4 тура)', () => {
+    const ids = Array.from({ length: 32 }, (_, i) => `p${i}`);
+    const groups = globalThis.generateIPTGroups(ids, 'mixed');
+    // generateIPTRounds produces 4 rounds for 8 players (IPT_SCHEDULE length)
+    groups.forEach(g => {
+      expect(g.rounds.length).toBe(4);
+    });
+  });
+
+  test('явная передача numGroups=4 для 32 участников', () => {
+    const ids = Array.from({ length: 32 }, (_, i) => `p${i}`);
+    const groups = globalThis.generateIPTGroups(ids, 'mixed', 4);
+    expect(groups.length).toBe(4);
+    groups.forEach(g => {
+      expect(g.players.length).toBe(8);
+    });
+  });
+
+  test('mixed с мужчинами и женщинами — сортировка по полу', () => {
+    globalThis.loadPlayerDB = () => [
+      ...Array.from({ length: 4 }, (_, i) => ({ id: `m${i}`, name: `Man${i}`, gender: 'm' })),
+      ...Array.from({ length: 4 }, (_, i) => ({ id: `f${i}`, name: `Woman${i}`, gender: 'female' })),
+    ];
+    const ids = ['m0','m1','m2','m3','f0','f1','f2','f3'];
+    const groups = globalThis.generateIPTGroups(ids, 'mixed');
+    expect(groups.length).toBe(1);
+    const players = groups[0].players;
+    expect(players.length).toBe(8);
+    // First 4 should be men, last 4 women
+    expect(players.slice(0, 4).every(id => id.startsWith('m'))).toBe(true);
+    expect(players.slice(4, 8).every(id => id.startsWith('f'))).toBe(true);
+  });
+});
+

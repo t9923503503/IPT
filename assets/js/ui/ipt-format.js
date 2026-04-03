@@ -149,9 +149,9 @@ function buildIPTMatchHistory(rounds) {
  * @param {string} gender — 'mixed'|'male'|'female'
  * @returns {Array} groups array for trn.ipt.groups
  */
-function generateIPTGroups(participants, gender) {
-  const n         = participants.length;
-  const numGroups = Math.max(1, Math.floor(n / 8));
+function generateIPTGroups(participants, gender, numGroups) {
+  const n = participants.length;
+  numGroups = numGroups || Math.max(1, Math.floor(n / 8));
   const names     = getIPTGroupNames(numGroups);
   const isMixed   = gender === 'mixed';
   const db        = typeof loadPlayerDB === 'function' ? loadPlayerDB() : [];
@@ -172,12 +172,13 @@ function generateIPTGroups(participants, gender) {
         if (raw === 'w' || raw === 'f' || raw === 'female') women.push(pid);
         else men.push(pid);
       });
-      // 4М + 4Ж — идеальный mixed
-      players = men.slice(0, 4).concat(women.slice(0, 4));
-      // Если не хватает — добираем
-      var rest = participants.slice(start, start + 8)
-        .filter(function(id) { return players.indexOf(id) === -1; });
-      while (players.length < 8 && rest.length > 0) players.push(rest.shift());
+      // только если есть оба пола — сортируем М+Ж
+      if (men.length > 0 && women.length > 0) {
+        var mixed = men.slice(0, 4).concat(women.slice(0, 4));
+        var rest = players.filter(function(id) { return mixed.indexOf(id) === -1; });
+        players = mixed.concat(rest).slice(0, 8);
+      }
+      // иначе — оставляем players как есть (все 8 из одного пола)
     }
 
     const rounds  = players.length === 8
