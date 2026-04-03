@@ -785,6 +785,19 @@ function toggleDropdown(id, btn) {
 // ════════════════════════════════════════════════════════════
 // 5. NAVIGATION BUILD — pill buttons
 // ════════════════════════════════════════════════════════════
+
+/** Returns the real number of active courts/groups for the current mode. */
+function getActiveCourtCount() {
+  const _iptNavTrnId  = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const _iptNavTrn    = _iptNavTrnId ? getTournaments().find(t => t.id === _iptNavTrnId) : null;
+  const _iptNavGroups = _iptNavTrn?.ipt?.groups || null;
+  const _rosterIsIPT  = typeof _rosterFmt !== 'undefined' && _rosterFmt === 'ipt';
+  const _iptCourtsCnt = typeof _iptCourts  !== 'undefined' ? _iptCourts : 1;
+  return _iptNavGroups
+    ? _iptNavGroups.length
+    : (_rosterIsIPT ? _iptCourtsCnt : nc);
+}
+
 function hasRound5Score() {
   const lastRi = ppc - 1;
   for (let ci = 0; ci < nc; ci++) {
@@ -961,11 +974,12 @@ function buildScreens() {
   const sc = document.getElementById('screens');
   sc.innerHTML = '';
 
-  // Corт screens (0..3, always created, hidden for ci >= nc)
+  // Court screens — only create screens for active courts
+  const courtCount = getActiveCourtCount();
   for (let ci = 0; ci < 4; ci++) {
     const s = document.createElement('div');
     s.className = 'screen'; s.id = `screen-${ci}`;
-    s.innerHTML = ci < nc ? renderCourt(ci) : '';
+    s.innerHTML = ci < courtCount ? renderCourt(ci) : '';
     sc.appendChild(s);
   }
 
@@ -1043,8 +1057,13 @@ async function _switchTabInner(id) {
   const _iptTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
   const _iptTrn   = _iptTrnId ? getTournaments().find(t => t.id === _iptTrnId) : null;
   if (_iptTrn?.ipt?.groups) {
-    if (typeof id === 'number' && _iptTrn.ipt.groups[id]) {
-      screen.innerHTML = renderIPTGroup(id);
+    if (typeof id === 'number') {
+      if (_iptTrn.ipt.groups[id]) {
+        screen.innerHTML = renderIPTGroup(id);
+      } else {
+        // Court index is out of range for this tournament — show stub
+        screen.innerHTML = '<div class="ipt-wrap"><div class="ipt-finals-stub"><div style="color:var(--muted)">Корт не активен в этом турнире</div></div></div>';
+      }
       screen.classList.add('active');
       syncNavActive();
       window.scrollTo({ top: 0, behavior: 'auto' });
