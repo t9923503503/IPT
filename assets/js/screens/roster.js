@@ -24,6 +24,7 @@ function switchRosterFmt(fmt) {
   const card = document.getElementById('fmt-settings-card');
   if (card) card.outerHTML = _renderFmtCard();
   else switchTab('roster');
+  buildNav();
 }
 
 function setIPTCourts(n) {
@@ -32,6 +33,7 @@ function setIPTCourts(n) {
   // Full re-render card (player count changes)
   const card = document.getElementById('fmt-settings-card');
   if (card) card.outerHTML = _renderFmtCard();
+  buildNav();
 }
 
 function setIPTQuickLimit(lim) {
