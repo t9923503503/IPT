@@ -117,6 +117,7 @@ async function bootstrapApp() {
     tournamentMeta.date = new Date().toISOString().split('T')[0];
   }
 
+  seedDefaultMalePlayers();
   buildAll();
   await switchTab(activeTabId != null ? activeTabId : 'home');
 

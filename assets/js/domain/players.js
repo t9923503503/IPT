@@ -261,6 +261,47 @@ function syncPlayersFromTournament(players, date) {
   });
   savePlayerDB(db);
 }
+function seedDefaultMalePlayers() {
+  const SEED_KEY = 'kotc3_male_seeded_v1';
+  if (localStorage.getItem(SEED_KEY)) return; // уже засеяно
+
+  const names = [
+    'Президент','Жорик','Смирнов','Терехов','Рукавишников',
+    'Шперлинг','Когалымский','Килатов','Привет','Камалов',
+    'Соболев','Лебедев','Майлыбаев','Никифоров','Володя',
+    'Артиков','Степанян','Рогожкин А','Пекшев','Салим',
+    'Грузин','Андрей','Салмин М','Шерметов','Фатин Павел',
+    'Гадаборшев','Паничкин','Шелгачев А','Пивин','Надымов Н',
+    'Александр','Микуляк'
+  ];
+
+  const db = loadPlayerDB();
+  const today = new Date().toISOString().split('T')[0];
+  let added = 0;
+
+  names.forEach(name => {
+    const exists = db.find(p => p.name.toLowerCase() === name.toLowerCase() && p.gender === 'M');
+    if (!exists) {
+      db.push({
+        id: Date.now() + Math.random(),
+        name,
+        gender: 'M',
+        status: 'active',
+        addedAt: today,
+        tournaments: 0, totalPts: 0, wins: 0,
+        ratingM: 0, ratingW: 0, ratingMix: 0,
+        tournamentsM: 0, tournamentsW: 0, tournamentsMix: 0,
+        lastSeen: '',
+        iptWins: 0, iptDiff: 0, iptPts: 0, iptMatches: 0,
+      });
+      added++;
+    }
+  });
+
+  if (added > 0) savePlayerDB(db);
+  localStorage.setItem(SEED_KEY, '1');
+}
+
 // Import names currently in the roster inputs (without score data)
 function syncPlayersFromRoster() {
   const date = new Date().toISOString().split('T')[0];
