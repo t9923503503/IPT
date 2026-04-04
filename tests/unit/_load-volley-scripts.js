@@ -90,6 +90,7 @@ export function loadVolleyCoreWithBridges(repoRootAbsPath) {
     `
     globalThis.iptMatchFinished = iptMatchFinished;
     globalThis.generateIPTRounds = generateIPTRounds;
+    globalThis.generateIPTGroups = generateIPTGroups;
     globalThis.calcIPTStandings = calcIPTStandings;
     globalThis.iptApplyScore = iptApplyScore;
     globalThis.finishIPTRound = finishIPTRound;
